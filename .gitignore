@@ -1,10 +1,12 @@
-# 依存パッケージ（pnpm install で作り直せる）
+# 依存パッケージ（npm install で作り直せる）
 node_modules/
 
 # ビルドの成果物・キャッシュ
-dist/
+.next/
 *.tsbuildinfo
-.wrangler/
+
+# 自動で作られる型の定義
+next-env.d.ts
 
 # テストの結果
 coverage/
@@ -16,8 +18,7 @@ coverage/
 .env
 .env.*
 !.env.example
-.dev.vars*
-!.dev.vars.example
+*.pem
 
 # エディタ（共有する設定だけ記録する）
 .vscode/*
