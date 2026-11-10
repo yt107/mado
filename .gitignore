@@ -1,0 +1,28 @@
+# 依存パッケージ（pnpm install で作り直せる）
+node_modules/
+
+# ビルドの成果物・キャッシュ
+dist/
+*.tsbuildinfo
+.wrangler/
+
+# テストの結果
+coverage/
+
+# ログ
+*.log
+
+# 秘密の値（見本の .example だけは記録する）
+.env
+.env.*
+!.env.example
+.dev.vars*
+!.dev.vars.example
+
+# エディタ（共有する設定だけ記録する）
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# Mac
+.DS_Store
