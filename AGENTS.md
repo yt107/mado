@@ -45,3 +45,4 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - 秘密の値（`.env`、鍵、トークン）をコミットしない
 - コミットのメッセージは Conventional Commits（`feat:`、`fix:`、`chore:` など）で、説明は日本語
 - GCP の権限、Cloud Run の設定、GitHub の設定は、勝手に変えない
+- main には直接 push しない。作業ブランチ（`feat/`、`fix/`、`docs/`、`chore/`）からプルリクエストを作り、CI が通ってから Squash でマージする
