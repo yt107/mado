@@ -3,7 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Mado",
-  description: "好きなウィジェットを並べて、タブレットやサブディスプレイを情報ディスプレイにするWebアプリ",
+  description:
+    "好きなウィジェットを並べて、タブレットやサブディスプレイを情報ディスプレイにするWebアプリ",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
