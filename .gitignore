@@ -19,6 +19,7 @@ coverage/
 .env.*
 !.env.example
 *.pem
+gha-creds-*.json
 
 # エディタ（共有する設定だけ記録する）
 .vscode/*

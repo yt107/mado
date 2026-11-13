@@ -15,6 +15,7 @@ vitest.config.*
 .env
 .env.*
 *.pem
+gha-creds-_.json
 
 # git、エディタ、Docker 自身
 .git/

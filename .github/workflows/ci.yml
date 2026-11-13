@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
@@ -45,3 +45,38 @@ jobs:
 
       - name: ビルドする
         run: npm run build
+
+  deploy:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: コードを取得する
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Google Cloud にログインする
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: mado-514617
+          workload_identity_provider: projects/268372143735/locations/global/workloadIdentityPools/github/providers/mado
+          service_account: github-deployer@mado-514617.iam.gserviceaccount.com
+
+      - name: Cloud Run にデプロイする
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v3
+        with:
+          service: mado
+          region: asia-northeast1
+          source: .
+          flags: --service-account=mado-run@mado-514617.iam.gserviceaccount.com --max-instances=2
+
+      - name: 公開された API を確かめる
+        env:
+          SERVICE_URL: ${{ steps.deploy.outputs.url }}
+        run: curl --fail --silent --show-error "$SERVICE_URL/api/health"
