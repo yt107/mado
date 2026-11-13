@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: コードを取得する
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Node.js を準備する
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: 依存パッケージを入れる
+        run: npm ci
+
+      - name: ESLint でチェックする
+        run: npm run lint
+
+      - name: 型をチェックする
+        run: npm run typecheck
+
+      - name: 整形をチェックする
+        run: npm run format:check
+
+      - name: テストを実行する
+        run: npm test -- --run
+
+      - name: ビルドする
+        run: npm run build
