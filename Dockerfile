@@ -1,10 +1,9 @@
-# Node.js の版。.nvmrc と同じ 24 系の最新（2026年11月10日時点）
-ARG NODE_VERSION=24.22.3-slim
+# Node.js の版は Dependabot が更新する。3つの FROM は同じ版にそろえる
 
 # ============================================
 # 1. 依存パッケージを入れる
 # ============================================
-FROM node:${NODE_VERSION} AS dependencies
+FROM node:24.22.3-slim AS dependencies
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -12,7 +11,7 @@ RUN npm ci --no-audit --no-fund
 # ============================================
 # 2. ビルドする
 # ============================================
-FROM node:${NODE_VERSION} AS builder
+FROM node:24.22.3-slim AS builder
 WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
@@ -22,7 +21,7 @@ RUN npm run build
 # ============================================
 # 3. 動かす
 # ============================================
-FROM node:${NODE_VERSION} AS runner
+FROM node:24.22.3-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
