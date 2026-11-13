@@ -1,0 +1,31 @@
+# 依存パッケージ（Docker の中で入れ直す）
+node_modules/
+
+# ビルドの成果物（Docker の中で作り直す）
+.next/
+*.tsbuildinfo
+next-env.d.ts
+
+# テスト（本番のイメージには不要）
+__tests__/
+coverage/
+vitest.config.*
+
+# 秘密の値（イメージに入れない）
+.env
+.env.*
+*.pem
+
+# git、エディタ、Docker 自身
+.git/
+.gitignore
+.vscode/
+Dockerfile
+.dockerignore
+
+# 設計資料と説明
+docs/
+*.md
+
+# Mac
+.DS_Store
