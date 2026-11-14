@@ -14,12 +14,15 @@
   },
   "dependencies": {
     "@hono/vercel": "^1.0.1",
+    "drizzle-orm": "^0.45.4",
     "hono": "^4.13.18",
     "next": "16.4.6",
+    "postgres": "^3.4.9",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
   "devDependencies": {
+    "@next/env": "^16.4.6",
     "@tailwindcss/turbopack": "4.3.5",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
@@ -27,6 +30,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.3.0",
+    "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "eslint-config-prettier": "^10.1.8",
@@ -35,5 +39,9 @@
     "tailwindcss": "4.3.5",
     "typescript": "^5",
     "vitest": "^5.1.0"
+  },
+  "allowScripts": {
+    "esbuild": false,
+    "fsevents": false
   }
 }
