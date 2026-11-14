@@ -37,6 +37,9 @@ jobs:
       - name: 型をチェックする
         run: npm run typecheck
 
+      - name: Better Auth のテーブルを確かめる
+        run: npm run auth:check
+
       - name: 整形をチェックする
         run: npm run format:check
 

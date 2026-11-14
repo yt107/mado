@@ -2,6 +2,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 import { supabaseCa } from "./supabase-ca";
+import * as schema from "./schema";
 
 const client = postgres(process.env.DATABASE_URL!, {
   // Session pooler は同時につなげる数に上限がある。Cloud Run は最大2台なので、1台あたり5本まで
@@ -12,4 +13,4 @@ const client = postgres(process.env.DATABASE_URL!, {
   ssl: { ca: supabaseCa },
 });
 
-export const db = drizzle({ client });
+export const db = drizzle({ client, schema });

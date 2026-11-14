@@ -119,7 +119,7 @@ erDiagram
 | `created_at` / `updated_at` | 全テーブルに持つ。画面や処理で使うもの（`users.created_at`、`sessions.created_at`、`memos.updated_at`）だけ図に載せている |
 | Better Auth の内部用の列（Googleのトークン類、メールアドレスの確認状態、セッションのIPアドレス・ブラウザの情報など） | Better Auth が決める列で、アプリの設計の対象ではない。実装時に公式のスキーマに合わせる |
 
-Better Auth の標準のスキーマにない列は、`users.terms_accepted_at`。追加する方法は実装時に確認する。
+Better Auth の標準のスキーマにない列は、`users.terms_accepted_at`。Better Auth の `additionalFields` で足し、`input: false` にして、ログインの仕組みからは書き込めないようにしている。
 
 ## 線の端の記号
 
