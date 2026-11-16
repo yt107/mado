@@ -9,6 +9,13 @@ export const auth = betterAuth({
     // テーブル名を複数形（users、sessions など）にする
     usePlural: true,
   }),
+  // Google でログインする。値は .env.local（本番は Cloud Run）から読む
+  socialProviders: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    },
+  },
   user: {
     additionalFields: {
       // 利用規約に同意した日時。NULL なら確認画面へ進ませる（er.md）
