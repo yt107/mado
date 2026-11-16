@@ -14,7 +14,13 @@ export const auth = betterAuth({
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      // ID トークンを送ってログインする入り口は使わないので、閉じる
+      disableIdTokenSignIn: true,
     },
+  },
+  account: {
+    // Google のトークンを暗号化してから DB に保存する（初期設定では暗号化しない）
+    encryptOAuthTokens: true,
   },
   user: {
     additionalFields: {
