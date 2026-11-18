@@ -2,7 +2,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 import * as z from "zod";
 
-import type { auth } from "../auth";
+import { auth } from "../auth";
 import { db } from "../db";
 import { users } from "../db/schema";
 import { requireAuth } from "../middleware/require-auth";
@@ -25,6 +25,9 @@ const toMe = (user: typeof auth.$Infer.Session.user) =>
     image: user.image ?? null,
     termsAcceptedAt: user.termsAcceptedAt ?? null,
   });
+
+// 退会の前に再ログインしてから、消せるまでの時間（10分）
+const REAUTH_WINDOW_MS = 10 * 60 * 1000;
 
 // 利用規約に同意するときに受け取る値
 const consentSchema = z.object({
@@ -57,6 +60,35 @@ const me = new Hono()
       );
     }
     return c.json(toMe(updated), 200);
+  })
+  // 自分を削除する。accounts、sessions、ボード以下も、まとめて消える（ON DELETE CASCADE）
+  .delete("/", async (c) => {
+    const { user, session } = c.var;
+    // 同意済みなら退会。Google で再ログインしてから10分以内のときだけ消せる（本人の確認）
+    if (
+      user.termsAcceptedAt &&
+      Date.now() - session.createdAt.getTime() > REAUTH_WINDOW_MS
+    ) {
+      return c.json(
+        {
+          error: {
+            code: "reauthentication_required",
+            message: "もう一度ログインしてから、やり直してください",
+          },
+        },
+        403,
+      );
+    }
+    await db.delete(users).where(eq(users.id, user.id));
+    // セッションの Cookie を消す。Better Auth のログアウトを使い、返ってきた Set-Cookie を引き継ぐ
+    const { headers } = await auth.api.signOut({
+      headers: c.req.raw.headers,
+      returnHeaders: true,
+    });
+    for (const cookie of headers.getSetCookie()) {
+      c.header("Set-Cookie", cookie, { append: true });
+    }
+    return c.body(null, 204);
   });
 
 export default me;
