@@ -14,31 +14,19 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+// drizzle-kit も読むファイルなので、@/ ではなく相対パスで読み込む
+import { DISPLAY_TARGETS } from "../../lib/board/display-targets";
+import { WIDGET_TYPES } from "../../lib/widgets/types";
 import { users } from "./auth-schema";
 
 // Better Auth のテーブルも、ここからまとめて書き出す（drizzle-kit と db がこのファイルを読むため）
 export * from "./auth-schema";
 
-// ウィジェットの種類（er.md の widget_type）
-export const widgetType = pgEnum("widget_type", [
-  "clock",
-  "weather",
-  "calendar",
-  "todo",
-  "memo",
-  "countdown",
-  "news",
-]);
+// ウィジェットの種類（er.md の widget_type）。値の一覧は画面と共通
+export const widgetType = pgEnum("widget_type", WIDGET_TYPES);
 
-// 表示先（er.md の display_target）
-export const displayTarget = pgEnum("display_target", [
-  "pc",
-  "tablet_landscape",
-  "tablet_portrait",
-  "sub_display",
-  "phone_portrait",
-  "phone_landscape",
-]);
+// 表示先（er.md の display_target）。値の一覧は画面と共通
+export const displayTarget = pgEnum("display_target", DISPLAY_TARGETS);
 
 // どのテーブルにも持たせる日時の列（er.md「図に載せていない列」）
 const timestamps = {

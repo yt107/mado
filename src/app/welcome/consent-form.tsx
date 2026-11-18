@@ -1,5 +1,6 @@
 "use client";
 
+import { CircleCheck, Info, ShieldCheck, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -70,9 +71,15 @@ export function ConsentForm({ defaultName }: Props) {
 
   return (
     <>
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="name">ユーザー名</label>
+      <form onSubmit={handleSubmit} className="mt-8 flex flex-col">
+        <label htmlFor="name" className="text-sm text-ink-2">
+          ユーザー名
+        </label>
+        <div className="relative mt-2">
+          <User
+            aria-hidden
+            className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-ink-3"
+          />
           <input
             id="name"
             name="name"
@@ -82,41 +89,72 @@ export function ConsentForm({ defaultName }: Props) {
             maxLength={50}
             autoComplete="nickname"
             aria-describedby="name-hint"
+            className="h-12 w-full rounded-[10px] border border-line bg-card pr-4 pl-11 text-ink"
           />
-          <p id="name-hint">
-            Googleの表示名を入れています。あとから変更できます
-          </p>
         </div>
+        <p
+          id="name-hint"
+          className="mt-2 flex items-center gap-1.5 text-xs text-ink-3"
+        >
+          <Info aria-hidden className="size-3.5 shrink-0" />
+          Googleの表示名を入れています。あとから変更できます
+        </p>
 
-        <section aria-labelledby="google-info">
-          <h2 id="google-info">Googleから受け取る情報</h2>
-          <ul>
-            <li>名前・メールアドレス・プロフィール画像</li>
-            <li>カレンダーなどの情報は、連携を許可するまで取得しません</li>
+        <section
+          aria-labelledby="google-info"
+          className="mt-6 rounded-[10px] bg-raised px-4 py-3.5"
+        >
+          <h2
+            id="google-info"
+            className="text-[0.8125rem] font-bold text-ink-2"
+          >
+            Googleから受け取る情報
+          </h2>
+          <ul className="mt-2 flex flex-col gap-1.5 text-xs text-ink-2">
+            <li className="flex items-center gap-2">
+              <CircleCheck aria-hidden className="size-3.5 shrink-0" />
+              名前・メールアドレス・プロフィール画像
+            </li>
+            <li className="flex items-center gap-2 text-ink-3">
+              <ShieldCheck aria-hidden className="size-3.5 shrink-0" />
+              カレンダーなどの情報は、連携を許可するまで取得しません
+            </li>
           </ul>
         </section>
 
-        <div>
+        <div className="mt-6 flex items-center gap-2.5">
           <input
             id="agreeToTerms"
             name="agreeToTerms"
             type="checkbox"
             required
+            className="size-4.5 shrink-0"
           />
-          <label htmlFor="agreeToTerms">
+          <label htmlFor="agreeToTerms" className="text-sm text-ink-2">
             利用規約とプライバシーポリシーに同意します（必須）
           </label>
         </div>
 
         {/* うまくいかなかったときのメッセージ。出たら、読み上げる */}
-        <p role="alert">{error}</p>
+        <p role="alert" className="mt-3 min-h-5 text-sm text-danger">
+          {error}
+        </p>
 
-        <button type="submit" disabled={isPending}>
+        <button
+          type="submit"
+          disabled={isPending}
+          className="mt-2 h-12 rounded-[10px] bg-accent font-bold text-on-accent transition-opacity hover:opacity-90 disabled:opacity-60"
+        >
           同意してはじめる
         </button>
       </form>
 
-      <button type="button" onClick={handleCancel} disabled={isPending}>
+      <button
+        type="button"
+        onClick={handleCancel}
+        disabled={isPending}
+        className="mx-auto mt-4 block rounded px-2 py-1 text-sm text-ink-2 hover:text-ink disabled:opacity-60"
+      >
         キャンセルしてログアウト
       </button>
     </>
