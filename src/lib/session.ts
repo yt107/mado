@@ -14,6 +14,16 @@ export const verifySession = cache(async () => {
     redirect("/login");
   }
   // 画面に渡すのは、使う値だけにする
-  const { id, name, email } = session.user;
-  return { id, name, email };
+  const { id, name, email, termsAcceptedAt } = session.user;
+  return { id, name, email, termsAcceptedAt: termsAcceptedAt ?? null };
+});
+
+// 利用規約に同意したユーザーを返す。同意していなければ、確認画面へ移す。
+// ダッシュボードなど、同意してから使う画面は、こちらを使う
+export const verifyConsentedUser = cache(async () => {
+  const user = await verifySession();
+  if (!user.termsAcceptedAt) {
+    redirect("/welcome");
+  }
+  return user;
 });

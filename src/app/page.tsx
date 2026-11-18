@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { verifySession } from "@/lib/session";
+import { verifyConsentedUser } from "@/lib/session";
 
 import { SignOutButton } from "./sign-out-button";
 
@@ -16,7 +16,8 @@ export default function Home() {
 }
 
 async function CurrentUser() {
-  const user = await verifySession();
+  // 同意していなければ、確認画面へ移す
+  const user = await verifyConsentedUser();
   return (
     <div>
       <p>
