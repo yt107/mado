@@ -148,6 +148,17 @@ function calendarDay(date: Date, timeZone: string) {
   );
 }
 
+// 都市の時差（GMT+9 など）。夏時間で変わるので、その日の値を出す
+export function gmtOffsetLabel(timeZone: string, date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    timeZoneName: "shortOffset",
+  }).formatToParts(date);
+  const name = part(parts, "timeZoneName");
+  // UTC と同じ時刻の都市は "GMT" だけになるので、+0 を付ける
+  return name === "GMT" ? "GMT+0" : name;
+}
+
 // 世界時計の日付が、基準の都市から見て「前日」「今日」「翌日」のどれか
 export function relativeDayLabel(
   date: Date,

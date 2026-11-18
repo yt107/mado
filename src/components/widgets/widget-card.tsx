@@ -18,24 +18,48 @@ type Props = {
   placement: Placement;
 };
 
-// ボードの1マス分の枠。置く場所をグリッドで指定し、中身は種類ごとに描く
+// ボードの1マス分の枠。置く場所をグリッドで指定し、中身は種類ごとに描く（表示モード）
 export function WidgetCard({ widget, placement }: Props) {
-  const size = widgetSize(placement.w, placement.h);
   return (
     <section
       aria-label={WIDGET_LABELS[widget.type]}
+      className="min-h-0 min-w-0"
+      style={gridArea(placement)}
+    >
+      <WidgetBody widget={widget} placement={placement} />
+    </section>
+  );
+}
+
+// ウィジェットの見た目（色と中身）。置く場所は決めない（編集モードと共通）
+export function WidgetBody({
+  widget,
+  placement,
+  className,
+}: Props & { className?: string }) {
+  const size = widgetSize(placement.w, placement.h);
+  return (
+    <div
       data-size={size}
-      className={cx("widget", TONES[widget.type] ?? "bg-card text-ink")}
-      style={{
-        gridColumn: `${placement.x + 1} / span ${placement.w}`,
-        gridRow: `${placement.y + 1} / span ${placement.h}`,
-      }}
+      className={cx(
+        "widget size-full",
+        TONES[widget.type] ?? "bg-card text-ink",
+        className,
+      )}
     >
       {widget.type === "clock" ? (
         <ClockWidget settings={widget.settings} size={size} />
       ) : (
         <PlaceholderWidget type={widget.type} />
       )}
-    </section>
+    </div>
   );
+}
+
+// グリッドの中の位置（x と y は0から数える）
+export function gridArea(placement: Placement) {
+  return {
+    gridColumn: `${placement.x + 1} / span ${placement.w}`,
+    gridRow: `${placement.y + 1} / span ${placement.h}`,
+  };
 }
