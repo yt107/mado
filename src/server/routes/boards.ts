@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import * as z from "zod";
 
-import { createBoardSchema } from "@/lib/board/schema";
+import { createBoardSchema, placeWidgetSchema } from "@/lib/board/schema";
 
 import { requireAuth } from "../middleware/require-auth";
 import { requireConsent } from "../middleware/require-consent";
@@ -10,7 +10,9 @@ import {
   getBoardDetail,
   listBoards,
 } from "../services/boards";
+import { placeWidget } from "../services/widgets";
 import { zValidator } from "../validator";
+import { widgetErrorResponse } from "./widget-errors";
 
 const boardIdParamSchema = z.object({
   boardId: z.uuid("ボードの ID が正しくありません"),
@@ -49,6 +51,22 @@ const boards = new Hono()
       );
     }
     return c.json(board, 200);
-  });
+  })
+  // 一覧からウィジェットを置く（編集モード）
+  .post(
+    "/:boardId/widgets",
+    zValidator("param", boardIdParamSchema),
+    zValidator("json", placeWidgetSchema),
+    async (c) => {
+      const result = await placeWidget(
+        c.var.user.id,
+        c.req.valid("param").boardId,
+        c.req.valid("json"),
+      );
+      return result.ok
+        ? c.json(result.value, 201)
+        : widgetErrorResponse(c, result.error, "ボードが見つかりません");
+    },
+  );
 
 export default boards;

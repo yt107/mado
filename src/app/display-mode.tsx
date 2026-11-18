@@ -1,6 +1,7 @@
 "use client";
 
 import { LayoutGrid, Maximize, Minimize, Monitor, Pencil } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useCallback,
@@ -190,17 +191,14 @@ export function DisplayMode({ board }: { board: BoardDetail }) {
           bottom: GRIDS[target].pages > 1 ? PAGER_HEIGHT + 12 : 24,
         }}
       >
-        {/* 編集モードは、まとまり2で作る。それまでは押しても何もしない */}
-        <button
-          type="button"
-          aria-disabled="true"
-          title="編集モードは準備中です"
-          className="flex min-h-9 shrink-0 cursor-not-allowed items-center gap-1.5 rounded-lg bg-accent px-3 font-bold text-on-accent opacity-60"
+        <Link
+          href="/edit"
+          className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 font-bold text-on-accent hover:opacity-90"
         >
           <Pencil aria-hidden className="size-4" />
           {/* 狭い画面では、文字は読み上げだけにして、アイコンで見せる */}
           <span className="max-sm:sr-only">編集に戻る</span>
-        </button>
+        </Link>
 
         <span aria-hidden className="mx-1 h-5 w-px bg-line" />
 
