@@ -31,7 +31,8 @@ import {
 import { clampSize, findFreeSpot } from "@/lib/board/layout";
 import type { BoardDetail, BoardWidget } from "@/lib/board/schema";
 import type { Placement } from "@/lib/board/templates";
-import type { ClockSettings } from "@/lib/widgets/clock";
+import { SETTINGS_SCHEMAS } from "@/lib/widgets/settings";
+import type { TodoItem } from "@/lib/widgets/todo";
 import {
   DEFAULT_SIZES,
   WIDGET_LABELS,
@@ -39,8 +40,12 @@ import {
 } from "@/lib/widgets/types";
 
 import { ClockSettingsPanel } from "./clock-settings-panel";
+import { CountdownSettingsPanel } from "./countdown-settings-panel";
+import { MemoSettingsPanel } from "./memo-settings-panel";
+import { TodoSettingsPanel } from "./todo-settings-panel";
 import { EditBoard, type BoardHandle, type DropPreview } from "./edit-board";
 import { EditorHeader } from "./editor-header";
+import { useDebouncedSaves } from "./use-debounced-saves";
 import { useSaveQueue } from "./use-save-queue";
 import { WidgetPalette, type PaletteStatus } from "./widget-palette";
 
@@ -172,15 +177,117 @@ export function Editor({ board, user }: Props) {
     });
   }
 
-  function updateSettings(widgetId: string, settings: ClockSettings) {
+  // 文字を打っているあいだの保存は、打ち終わるまで少し待ってから送る
+  const saves = useDebouncedSaves();
+
+  function updateSettings(
+    widgetId: string,
+    settings: Record<string, unknown>,
+    { debounce = false }: { debounce?: boolean } = {},
+  ) {
     setWidgets((current) =>
       current.map((w) => (w.id === widgetId ? { ...w, settings } : w)),
     );
-    saver.run(() =>
-      api.widgets[":widgetId"].$patch({
+    const key = `settings:${widgetId}`;
+    const send = () =>
+      saver.run(() =>
+        api.widgets[":widgetId"].$patch({
+          param: { widgetId },
+          json: { settings },
+        }),
+      );
+    if (debounce) {
+      saves.schedule(key, send);
+    } else {
+      // 待っている古い保存は捨てて、今の設定（文字の変更も入っている）を送る
+      saves.cancel(key);
+      send();
+    }
+  }
+
+  // ToDo の項目（画面の中を先に変えてから保存する）
+  function setTodoItems(
+    widgetId: string,
+    update: (items: TodoItem[]) => TodoItem[],
+  ) {
+    setWidgets((current) =>
+      current.map((w) =>
+        w.id === widgetId ? { ...w, todoItems: update(w.todoItems ?? []) } : w,
+      ),
+    );
+  }
+
+  function addTodo(widgetId: string, title: string) {
+    saver.run(async () => {
+      const res = await api.widgets[":widgetId"]["todo-items"].$post({
         param: { widgetId },
-        json: { settings },
+        json: { title },
+      });
+      if (res.ok) {
+        const item = await res.json();
+        setTodoItems(widgetId, (items) => [...items, item]);
+        announce(`「${item.title}」を追加しました`);
+      }
+      return res;
+    });
+  }
+
+  function updateTodo(
+    widgetId: string,
+    itemId: string,
+    patch: { title?: string; isDone?: boolean },
+  ) {
+    setTodoItems(widgetId, (items) =>
+      items.map((item) => (item.id === itemId ? { ...item, ...patch } : item)),
+    );
+    saver.run(() =>
+      api["todo-items"][":itemId"].$patch({
+        param: { itemId },
+        json: patch,
       }),
+    );
+  }
+
+  function deleteTodo(widgetId: string, itemId: string) {
+    setTodoItems(widgetId, (items) => items.filter((i) => i.id !== itemId));
+    saver.run(() =>
+      api["todo-items"][":itemId"].$delete({ param: { itemId } }),
+    );
+  }
+
+  function moveTodo(widgetId: string, itemId: string, toIndex: number) {
+    setTodoItems(widgetId, (items) => {
+      const sorted = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
+      const moving = sorted.find((item) => item.id === itemId);
+      if (!moving) return items;
+      const rest = sorted.filter((item) => item.id !== itemId);
+      rest.splice(toIndex, 0, moving);
+      return rest.map((item, index) => ({ ...item, sortOrder: index }));
+    });
+    saver.run(() =>
+      api["todo-items"][":itemId"].$patch({
+        param: { itemId },
+        json: { sortOrder: toIndex },
+      }),
+    );
+  }
+
+  // メモの本文。打つたびにボードに出し、打ち終わってから保存する
+  function changeMemoBody(widgetId: string, body: string) {
+    setWidgets((current) =>
+      current.map((w) =>
+        w.id === widgetId
+          ? { ...w, memo: { body, updatedAt: new Date().toISOString() } }
+          : w,
+      ),
+    );
+    saves.schedule(`memo:${widgetId}`, () =>
+      saver.run(() =>
+        api.widgets[":widgetId"].memo.$put({
+          param: { widgetId },
+          json: { body },
+        }),
+      ),
     );
   }
 
@@ -243,7 +350,79 @@ export function Editor({ board, user }: Props) {
   const settingsPlacement = settingsWidget
     ? placementOn(settingsWidget, target)
     : null;
+  const sizeLabel = settingsPlacement
+    ? `${settingsPlacement.w}×${settingsPlacement.h}`
+    : "未配置";
   const design = DESIGN_SIZES[target];
+
+  function closeSettings() {
+    saves.flush();
+    setSettingsId(null);
+  }
+
+  // 設定パネルを開いたまま別のウィジェットを選んだら、そのウィジェットのパネルに切り替える
+  function select(widgetId: string | null) {
+    setSelectedId(widgetId);
+    if (!settingsId || !widgetId || widgetId === settingsId) return;
+    const widget = widgets.find((w) => w.id === widgetId);
+    saves.flush();
+    setSettingsId(widget && SETTINGS_SCHEMAS[widget.type] ? widgetId : null);
+  }
+
+  // 選んだウィジェットの種類に合わせた設定パネル
+  function settingsPanel(widget: BoardWidget) {
+    switch (widget.type) {
+      case "clock":
+        return (
+          <ClockSettingsPanel
+            settings={widget.settings}
+            sizeLabel={sizeLabel}
+            onChange={(settings) => updateSettings(widget.id, settings)}
+            onClose={closeSettings}
+          />
+        );
+      case "todo":
+        return (
+          <TodoSettingsPanel
+            settings={widget.settings}
+            items={widget.todoItems ?? []}
+            sizeLabel={sizeLabel}
+            onSettingsChange={(settings) => updateSettings(widget.id, settings)}
+            onAdd={(title) => addTodo(widget.id, title)}
+            onUpdate={(itemId, patch) => updateTodo(widget.id, itemId, patch)}
+            onDelete={(itemId) => deleteTodo(widget.id, itemId)}
+            onMove={(itemId, toIndex) => moveTodo(widget.id, itemId, toIndex)}
+            onAnnounce={announce}
+            onClose={closeSettings}
+          />
+        );
+      case "memo":
+        return (
+          <MemoSettingsPanel
+            settings={widget.settings}
+            body={widget.memo?.body ?? ""}
+            sizeLabel={sizeLabel}
+            onSettingsChange={(settings) => updateSettings(widget.id, settings)}
+            onBodyChange={(body) => changeMemoBody(widget.id, body)}
+            onClose={closeSettings}
+          />
+        );
+      case "countdown":
+        return (
+          <CountdownSettingsPanel
+            settings={widget.settings}
+            sizeLabel={sizeLabel}
+            onSettingsChange={(settings, options) =>
+              updateSettings(widget.id, settings, options)
+            }
+            onClose={closeSettings}
+          />
+        );
+      default:
+        return null;
+    }
+  }
+  const panel = settingsWidget ? settingsPanel(settingsWidget) : null;
 
   return (
     <>
@@ -257,20 +436,7 @@ export function Editor({ board, user }: Props) {
         <div className="flex min-h-0 flex-1">
           {!collapsed && (
             <aside className="w-80 shrink-0 border-r border-line bg-surface">
-              {settingsWidget?.type === "clock" ? (
-                <ClockSettingsPanel
-                  settings={settingsWidget.settings}
-                  sizeLabel={
-                    settingsPlacement
-                      ? `${settingsPlacement.w}×${settingsPlacement.h}`
-                      : "未配置"
-                  }
-                  onChange={(settings) =>
-                    updateSettings(settingsWidget.id, settings)
-                  }
-                  onClose={() => setSettingsId(null)}
-                />
-              ) : (
+              {panel ?? (
                 <WidgetPalette
                   statusOf={statusOf}
                   draggingType={paletteDrag?.type ?? null}
@@ -342,7 +508,7 @@ export function Editor({ board, user }: Props) {
                 target={target}
                 selectedId={selectedId}
                 dropPreview={paletteDrag?.preview ?? null}
-                onSelect={setSelectedId}
+                onSelect={select}
                 onCommit={commitPlacement}
                 onRemove={removeFromTarget}
                 onOpenSettings={(widgetId) => {

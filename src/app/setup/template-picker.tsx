@@ -153,7 +153,7 @@ export function TemplatePicker() {
           </div>
 
           <BoardPreview
-            widgets={templateWidgets(templateId)}
+            widgets={templateWidgets(templateId, { withSample: true })}
             target={target}
             maxHeight="52vh"
           />

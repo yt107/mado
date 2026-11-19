@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   index,
   integer,
@@ -95,6 +96,47 @@ export const widgetPlacements = pgTable(
   ],
 );
 
+// ToDo の項目（ToDo のウィジェットにだけ付ける。種類の確認はサービス層でする。docs/er.md）
+export const todoItems = pgTable(
+  "todo_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    widgetId: uuid("widget_id")
+      .notNull()
+      .references(() => widgets.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    isDone: boolean("is_done").notNull().default(false),
+    sortOrder: integer("sort_order").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    // ウィジェットごとに並び順で読む。外部キーのインデックスも兼ねる
+    index("todo_items_widget_id_sort_order_idx").on(
+      table.widgetId,
+      table.sortOrder,
+    ),
+    check(
+      "todo_items_title_length_check",
+      sql`char_length(${table.title}) between 1 and 100`,
+    ),
+  ],
+);
+
+// メモの本文（メモのウィジェットに1つ。updated_at は「2時間前」の表示に使う）
+export const memos = pgTable(
+  "memos",
+  {
+    widgetId: uuid("widget_id")
+      .primaryKey()
+      .references(() => widgets.id, { onDelete: "cascade" }),
+    body: text("body").notNull().default(""),
+    ...timestamps,
+  },
+  (table) => [
+    check("memos_body_length_check", sql`char_length(${table.body}) <= 500`),
+  ],
+);
+
 export const boardsRelations = relations(boards, ({ one, many }) => ({
   user: one(users, { fields: [boards.userId], references: [users.id] }),
   widgets: many(widgets),
@@ -103,6 +145,19 @@ export const boardsRelations = relations(boards, ({ one, many }) => ({
 export const widgetsRelations = relations(widgets, ({ one, many }) => ({
   board: one(boards, { fields: [widgets.boardId], references: [boards.id] }),
   placements: many(widgetPlacements),
+  todoItems: many(todoItems),
+  memo: one(memos),
+}));
+
+export const todoItemsRelations = relations(todoItems, ({ one }) => ({
+  widget: one(widgets, {
+    fields: [todoItems.widgetId],
+    references: [widgets.id],
+  }),
+}));
+
+export const memosRelations = relations(memos, ({ one }) => ({
+  widget: one(widgets, { fields: [memos.widgetId], references: [widgets.id] }),
 }));
 
 export const widgetPlacementsRelations = relations(

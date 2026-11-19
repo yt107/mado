@@ -18,12 +18,19 @@ type Item = { widget: BoardWidget; placement: Placement };
 type Props = {
   widgets: BoardWidget[];
   target: DisplayTarget;
+  // 表示モードでは、ToDo のチェックができる（プレビューではできない）
+  interactive?: boolean;
   className?: string;
 };
 
 // ボードを、表示先のグリッドに並べて描く。表示モードとプレビューの両方で使う。
 // 置かれた場所の大きさを測り、文字や余白の倍率（--scale）を決める
-export function BoardView({ widgets, target, className }: Props) {
+export function BoardView({
+  widgets,
+  target,
+  interactive = false,
+  className,
+}: Props) {
   const grid = GRIDS[target];
   const ref = useRef<HTMLDivElement>(null);
   const [metrics, setMetrics] = useState<BoardMetrics | null>(null);
@@ -67,9 +74,19 @@ export function BoardView({ widgets, target, className }: Props) {
           この表示先には、まだウィジェットがありません
         </p>
       ) : pages.length === 1 ? (
-        <PageGrid items={pages[0] ?? []} target={target} metrics={metrics} />
+        <PageGrid
+          items={pages[0] ?? []}
+          target={target}
+          metrics={metrics}
+          interactive={interactive}
+        />
       ) : (
-        <Pager pages={pages} target={target} metrics={metrics} />
+        <Pager
+          pages={pages}
+          target={target}
+          metrics={metrics}
+          interactive={interactive}
+        />
       )}
     </div>
   );
@@ -79,10 +96,12 @@ function PageGrid({
   items,
   target,
   metrics,
+  interactive,
 }: {
   items: Item[];
   target: DisplayTarget;
   metrics: BoardMetrics | null;
+  interactive: boolean;
 }) {
   const { cols, rows } = GRIDS[target];
   return (
@@ -96,7 +115,12 @@ function PageGrid({
       }}
     >
       {items.map(({ widget, placement }) => (
-        <WidgetCard key={widget.id} widget={widget} placement={placement} />
+        <WidgetCard
+          key={widget.id}
+          widget={widget}
+          placement={placement}
+          interactive={interactive}
+        />
       ))}
     </div>
   );
@@ -107,10 +131,12 @@ function Pager({
   pages,
   target,
   metrics,
+  interactive,
 }: {
   pages: Item[][];
   target: DisplayTarget;
   metrics: BoardMetrics | null;
+  interactive: boolean;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [current, setCurrent] = useState(0);
@@ -162,7 +188,12 @@ function Pager({
             aria-label={`${i + 1} / ${pages.length}`}
             className="h-full flex-[0_0_100%] snap-center"
           >
-            <PageGrid items={items} target={target} metrics={metrics} />
+            <PageGrid
+              items={items}
+              target={target}
+              metrics={metrics}
+              interactive={interactive}
+            />
           </div>
         ))}
       </div>

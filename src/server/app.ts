@@ -4,6 +4,7 @@ import { csrf } from "hono/csrf";
 import { auth } from "./auth";
 import boards from "./routes/boards";
 import me from "./routes/me";
+import todoItems from "./routes/todo-items";
 import widgets from "./routes/widgets";
 
 const app = new Hono()
@@ -16,7 +17,8 @@ const app = new Hono()
   .get("/health", (c) => c.json({ status: "ok" }))
   .route("/me", me)
   .route("/boards", boards)
-  .route("/widgets", widgets);
+  .route("/widgets", widgets)
+  .route("/todo-items", todoItems);
 
 export type AppType = typeof app;
 export default app;

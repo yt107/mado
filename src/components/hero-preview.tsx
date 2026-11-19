@@ -8,7 +8,7 @@ import { templateWidgets } from "@/lib/board/sample";
 import { BoardPreview } from "./board/board-preview";
 import { TargetPicker } from "./board/target-picker";
 
-const SAMPLE = templateWidgets("basic");
+const SAMPLE = templateWidgets("basic", { withSample: true });
 
 // ログインの画面の右側に出す、ボードの見本（ベーシックのテンプレート）
 export function HeroPreview({

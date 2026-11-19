@@ -5,7 +5,6 @@ import { GRIDS, type DisplayTarget } from "@/lib/board/display-targets";
 import { fitsGrid, overlaps } from "@/lib/board/layout";
 import {
   placementSchema,
-  widgetSchema,
   type BoardWidget,
   type placeWidgetSchema,
 } from "@/lib/board/schema";
@@ -14,6 +13,7 @@ import { normalizeSettings, SETTINGS_SCHEMAS } from "@/lib/widgets/settings";
 
 import { db } from "../db";
 import { boards, widgetPlacements, widgets } from "../db/schema";
+import { toBoardWidget, widgetColumns, widgetWith } from "./widget-shape";
 
 // 編集モードの、ウィジェットを置く・動かす・外す・設定を変える処理。
 // どれも、ウィジェット → ボード → ユーザー とたどって、持ち主を確かめる（docs/er.md）
@@ -23,15 +23,22 @@ export type WidgetError =
   | { code: "out_of_grid" }
   | { code: "overlap" }
   | { code: "already_placed" }
-  | { code: "invalid_settings"; message: string };
+  | { code: "invalid_settings"; message: string }
+  // 中身の操作で、種類が合わないとき（ToDo でないウィジェットに項目を足す、など）
+  | { code: "wrong_type"; message: string }
+  // ToDo の項目が多すぎるとき
+  | { code: "too_many"; message: string };
 
 export type Result<T> =
   { ok: true; value: T } | { ok: false; error: WidgetError };
 
-const ok = <T>(value: T): Result<T> => ({ ok: true, value });
-const fail = (error: WidgetError): Result<never> => ({ ok: false, error });
+export const ok = <T>(value: T): Result<T> => ({ ok: true, value });
+export const fail = (error: WidgetError): Result<never> => ({
+  ok: false,
+  error,
+});
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 // ある表示先に置かれている配置（ボードの中のすべてのウィジェットぶん）
 async function placementsOn(tx: Tx, boardId: string, target: DisplayTarget) {
@@ -57,25 +64,17 @@ async function placementsOn(tx: Tx, boardId: string, target: DisplayTarget) {
 async function readWidget(widgetId: string): Promise<BoardWidget> {
   const widget = await db.query.widgets.findFirst({
     where: eq(widgets.id, widgetId),
-    columns: { id: true, type: true, settings: true },
-    with: {
-      placements: {
-        columns: {
-          displayTarget: true,
-          page: true,
-          x: true,
-          y: true,
-          w: true,
-          h: true,
-        },
-      },
-    },
+    columns: widgetColumns,
+    with: widgetWith,
   });
-  return widgetSchema.parse(widget);
+  if (!widget) {
+    throw new Error("ウィジェットが見つかりません");
+  }
+  return toBoardWidget(widget);
 }
 
 // 自分のウィジェットなら、種類とボードを返す
-async function findOwnedWidget(userId: string, widgetId: string) {
+export async function findOwnedWidget(userId: string, widgetId: string) {
   const [row] = await db
     .select({ id: widgets.id, type: widgets.type, boardId: widgets.boardId })
     .from(widgets)
