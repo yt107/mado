@@ -12,6 +12,7 @@ import { normalizeSettings } from "@/lib/widgets/settings";
 
 import { db } from "../db";
 import { boards, users, widgetPlacements, widgets } from "../db/schema";
+import { toBoardWidget, widgetColumns, widgetWith } from "./widget-shape";
 
 // ボードを読み書きする処理。API（Hono）と画面（Server Components）の両方から使う。
 // どれも userId で持ち主を確かめる。他人のボードは「ない」として扱う（docs/api.md）
@@ -37,28 +38,21 @@ export async function getBoardDetail(
     columns: { id: true, name: true },
     with: {
       widgets: {
-        columns: { id: true, type: true, settings: true },
+        columns: widgetColumns,
         // 種類の順（時計、天気、カレンダー…）にそろえる
         orderBy: [asc(widgets.type)],
-        with: {
-          placements: {
-            columns: {
-              displayTarget: true,
-              page: true,
-              x: true,
-              y: true,
-              w: true,
-              h: true,
-            },
-          },
-        },
+        // 配置、ToDo の項目、メモの本文も一緒に読む
+        with: widgetWith,
       },
     },
   });
   if (!board) {
     return null;
   }
-  return boardDetailSchema.parse(board);
+  return boardDetailSchema.parse({
+    ...board,
+    widgets: board.widgets.map(toBoardWidget),
+  });
 }
 
 // テンプレートからボードを作る。もうボードがあれば作らずに null を返す（MVP では1人1つ）

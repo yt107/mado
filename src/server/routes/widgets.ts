@@ -2,13 +2,16 @@ import { Hono } from "hono";
 import * as z from "zod";
 
 import {
+  createTodoItemSchema,
   displayTargetSchema,
   placementInputSchema,
+  putMemoSchema,
   updateSettingsSchema,
 } from "@/lib/board/schema";
 
 import { requireAuth } from "../middleware/require-auth";
 import { requireConsent } from "../middleware/require-consent";
+import { addTodoItem, putMemo } from "../services/contents";
 import {
   removePlacement,
   setPlacement,
@@ -77,6 +80,38 @@ const widgets = new Hono()
       );
       return result.ok
         ? c.body(null, 204)
+        : widgetErrorResponse(c, result.error);
+    },
+  )
+  // ToDo の項目を足す（docs/api.md の区切り4）
+  .post(
+    "/:widgetId/todo-items",
+    zValidator("param", widgetParamSchema),
+    zValidator("json", createTodoItemSchema),
+    async (c) => {
+      const result = await addTodoItem(
+        c.var.user.id,
+        c.req.valid("param").widgetId,
+        c.req.valid("json").title,
+      );
+      return result.ok
+        ? c.json(result.value, 201)
+        : widgetErrorResponse(c, result.error);
+    },
+  )
+  // メモの本文を保存する
+  .put(
+    "/:widgetId/memo",
+    zValidator("param", widgetParamSchema),
+    zValidator("json", putMemoSchema),
+    async (c) => {
+      const result = await putMemo(
+        c.var.user.id,
+        c.req.valid("param").widgetId,
+        c.req.valid("json").body,
+      );
+      return result.ok
+        ? c.json(result.value, 200)
         : widgetErrorResponse(c, result.error);
     },
   );

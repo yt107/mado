@@ -175,7 +175,7 @@ export function DisplayMode({ board }: { board: BoardDetail }) {
       )}
     >
       <h1 className="sr-only">{board.name}</h1>
-      <BoardView widgets={board.widgets} target={target} />
+      <BoardView widgets={board.widgets} target={target} interactive />
 
       <div
         ref={barRef}

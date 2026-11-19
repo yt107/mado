@@ -25,6 +25,8 @@ export function widgetErrorResponse(
         400,
       );
     case "invalid_settings":
+    case "wrong_type":
+    case "too_many":
       return c.json(
         { error: { code: "validation_error", message: error.message } },
         400,
