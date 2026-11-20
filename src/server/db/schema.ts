@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  customType,
   index,
   integer,
   jsonb,
@@ -137,6 +138,67 @@ export const memos = pgTable(
   ],
 );
 
+// 暗号化した値を入れる列（PostgreSQL の bytea）。Drizzle に専用の型がないので、自分で定義する。
+// Node.js の Buffer ではなく Uint8Array で扱う（Cloudflare Workers でも動くように）
+const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
+  dataType: () => "bytea",
+  fromDriver: (value) => new Uint8Array(value),
+});
+
+// カレンダーの購読先（カレンダーのウィジェットにだけ付ける。docs/er.md）。
+// iCal の URL は、それだけで予定を読める鍵なので、暗号化して保存し、画面には返さない
+export const calendarSubscriptions = pgTable(
+  "calendar_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    widgetId: uuid("widget_id")
+      .notNull()
+      .references(() => widgets.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    urlEncrypted: bytea("url_encrypted").notNull(),
+    color: text("color").notNull(),
+    // 最後に読めた日時と、最後に読めなかったときの理由（「10:28 更新」「取得できません」の表示）
+    lastFetchedAt: timestamp("last_fetched_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    ...timestamps,
+  },
+  (table) => [
+    index("calendar_subscriptions_widget_id_idx").on(table.widgetId),
+    check(
+      "calendar_subscriptions_name_length_check",
+      sql`char_length(${table.name}) between 1 and 50`,
+    ),
+  ],
+);
+
+// ニュースのフィード（ニュースのウィジェットにだけ付ける。docs/er.md）
+export const newsFeeds = pgTable(
+  "news_feeds",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    widgetId: uuid("widget_id")
+      .notNull()
+      .references(() => widgets.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    feedUrl: text("feed_url").notNull(),
+    sortOrder: integer("sort_order").notNull(),
+    lastFetchedAt: timestamp("last_fetched_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    ...timestamps,
+  },
+  (table) => [
+    // 同じフィードは、1つのウィジェットに1回まで。widget_id で探すときのインデックスも兼ねる
+    unique("news_feeds_widget_id_feed_url_unique").on(
+      table.widgetId,
+      table.feedUrl,
+    ),
+    check(
+      "news_feeds_title_length_check",
+      sql`char_length(${table.title}) between 1 and 100`,
+    ),
+  ],
+);
+
 export const boardsRelations = relations(boards, ({ one, many }) => ({
   user: one(users, { fields: [boards.userId], references: [users.id] }),
   widgets: many(widgets),
@@ -147,6 +209,8 @@ export const widgetsRelations = relations(widgets, ({ one, many }) => ({
   placements: many(widgetPlacements),
   todoItems: many(todoItems),
   memo: one(memos),
+  calendarSubscriptions: many(calendarSubscriptions),
+  newsFeeds: many(newsFeeds),
 }));
 
 export const todoItemsRelations = relations(todoItems, ({ one }) => ({
@@ -158,6 +222,23 @@ export const todoItemsRelations = relations(todoItems, ({ one }) => ({
 
 export const memosRelations = relations(memos, ({ one }) => ({
   widget: one(widgets, { fields: [memos.widgetId], references: [widgets.id] }),
+}));
+
+export const calendarSubscriptionsRelations = relations(
+  calendarSubscriptions,
+  ({ one }) => ({
+    widget: one(widgets, {
+      fields: [calendarSubscriptions.widgetId],
+      references: [widgets.id],
+    }),
+  }),
+);
+
+export const newsFeedsRelations = relations(newsFeeds, ({ one }) => ({
+  widget: one(widgets, {
+    fields: [newsFeeds.widgetId],
+    references: [widgets.id],
+  }),
 }));
 
 export const widgetPlacementsRelations = relations(

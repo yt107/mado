@@ -3,7 +3,9 @@ import { csrf } from "hono/csrf";
 
 import { auth } from "./auth";
 import boards from "./routes/boards";
+import calendarSubscriptions from "./routes/calendar-subscriptions";
 import me from "./routes/me";
+import newsFeeds from "./routes/news-feeds";
 import todoItems from "./routes/todo-items";
 import widgets from "./routes/widgets";
 
@@ -18,7 +20,9 @@ const app = new Hono()
   .route("/me", me)
   .route("/boards", boards)
   .route("/widgets", widgets)
-  .route("/todo-items", todoItems);
+  .route("/todo-items", todoItems)
+  .route("/calendar-subscriptions", calendarSubscriptions)
+  .route("/news-feeds", newsFeeds);
 
 export type AppType = typeof app;
 export default app;

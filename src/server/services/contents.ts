@@ -3,11 +3,17 @@ import type * as z from "zod";
 
 import type { MemoContent, updateTodoItemSchema } from "@/lib/board/schema";
 import { TODO_ITEMS_MAX, type TodoItem } from "@/lib/widgets/todo";
-import type { WidgetType } from "@/lib/widgets/types";
 
 import { db } from "../db";
 import { boards, memos, todoItems, widgets } from "../db/schema";
-import { fail, ok, type Result, type Tx } from "./widgets";
+import {
+  fail,
+  lockOwnedWidget,
+  ok,
+  wrongType,
+  type Result,
+  type Tx,
+} from "./widgets";
 
 // ウィジェットの中身（ToDo の項目、メモの本文）の処理。
 // ウィジェット → ボード → ユーザー とたどって持ち主を確かめ、種類も確かめる（docs/er.md）
@@ -18,27 +24,6 @@ const todoColumns = {
   isDone: todoItems.isDone,
   sortOrder: todoItems.sortOrder,
 };
-
-// 自分のウィジェットを、ボードの行をロックしてから読む（同じボードへの編集を1つずつ進める）
-async function lockOwnedWidget(tx: Tx, userId: string, widgetId: string) {
-  const [row] = await tx
-    .select({ id: widgets.id, type: widgets.type })
-    .from(widgets)
-    .innerJoin(boards, eq(boards.id, widgets.boardId))
-    .where(and(eq(widgets.id, widgetId), eq(boards.userId, userId)))
-    .for("update", { of: boards });
-  return row ?? null;
-}
-
-function wrongType(expected: WidgetType) {
-  return fail({
-    code: "wrong_type",
-    message:
-      expected === "todo"
-        ? "ToDo のウィジェットではありません"
-        : "メモのウィジェットではありません",
-  });
-}
 
 // ToDo の項目を、いちばん下に足す
 export async function addTodoItem(

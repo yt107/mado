@@ -9,9 +9,20 @@ import {
   updateSettingsSchema,
 } from "@/lib/board/schema";
 
+import {
+  calendarEventsQuerySchema,
+  createCalendarSubscriptionSchema,
+} from "@/lib/widgets/calendar";
+import { createNewsFeedSchema } from "@/lib/widgets/news";
+
 import { requireAuth } from "../middleware/require-auth";
 import { requireConsent } from "../middleware/require-consent";
+import {
+  addCalendarSubscription,
+  getCalendarEvents,
+} from "../services/calendars";
 import { addTodoItem, putMemo } from "../services/contents";
+import { addNewsFeed, getNewsItems } from "../services/news";
 import {
   removePlacement,
   setPlacement,
@@ -109,6 +120,70 @@ const widgets = new Hono()
         c.var.user.id,
         c.req.valid("param").widgetId,
         c.req.valid("json").body,
+      );
+      return result.ok
+        ? c.json(result.value, 200)
+        : widgetErrorResponse(c, result.error);
+    },
+  )
+  // カレンダーの iCal の URL を登録する（一度読んで、読めたものだけ）
+  .post(
+    "/:widgetId/calendar-subscriptions",
+    zValidator("param", widgetParamSchema),
+    zValidator("json", createCalendarSubscriptionSchema),
+    async (c) => {
+      const result = await addCalendarSubscription(
+        c.var.user.id,
+        c.req.valid("param").widgetId,
+        c.req.valid("json").url,
+      );
+      return result.ok
+        ? c.json(result.value, 201)
+        : widgetErrorResponse(c, result.error);
+    },
+  )
+  // 予定を取り出す（サーバーが iCal を読みに行く）
+  .get(
+    "/:widgetId/calendar-events",
+    zValidator("param", widgetParamSchema),
+    zValidator("query", calendarEventsQuerySchema),
+    async (c) => {
+      const { from, to } = c.req.valid("query");
+      const result = await getCalendarEvents(
+        c.var.user.id,
+        c.req.valid("param").widgetId,
+        from,
+        to,
+      );
+      return result.ok
+        ? c.json(result.value, 200)
+        : widgetErrorResponse(c, result.error);
+    },
+  )
+  // ニュースのフィードを登録する（サイトの URL なら、フィードを探す）
+  .post(
+    "/:widgetId/news-feeds",
+    zValidator("param", widgetParamSchema),
+    zValidator("json", createNewsFeedSchema),
+    async (c) => {
+      const result = await addNewsFeed(
+        c.var.user.id,
+        c.req.valid("param").widgetId,
+        c.req.valid("json").url,
+      );
+      return result.ok
+        ? c.json(result.value, 201)
+        : widgetErrorResponse(c, result.error);
+    },
+  )
+  // 記事を取り出す（サーバーがフィードを読みに行く）
+  .get(
+    "/:widgetId/news-items",
+    zValidator("param", widgetParamSchema),
+    async (c) => {
+      const result = await getNewsItems(
+        c.var.user.id,
+        c.req.valid("param").widgetId,
       );
       return result.ok
         ? c.json(result.value, 200)

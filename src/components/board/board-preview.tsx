@@ -2,6 +2,7 @@ import { DESIGN_SIZES, type DisplayTarget } from "@/lib/board/display-targets";
 import type { BoardWidget } from "@/lib/board/schema";
 import { cx } from "@/lib/cx";
 
+import { SampleMode } from "../widgets/sample-mode";
 import { BoardView } from "./board-view";
 
 type Props = {
@@ -31,7 +32,10 @@ export function BoardPreview({
         maxWidth: `calc(${maxHeight} * ${width} / ${height})`,
       }}
     >
-      <BoardView widgets={widgets} target={target} />
+      {/* 見本なので、天気・予定・ニュースは見本の中身を出す */}
+      <SampleMode>
+        <BoardView widgets={widgets} target={target} />
+      </SampleMode>
     </div>
   );
 }

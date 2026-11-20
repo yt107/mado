@@ -28,8 +28,12 @@ const boards = new Hono()
   })
   // テンプレートを選んで、ボードを作る
   .post("/", zValidator("json", createBoardSchema), async (c) => {
-    const { templateId } = c.req.valid("json");
-    const board = await createBoardFromTemplate(c.var.user.id, templateId);
+    const { templateId, location } = c.req.valid("json");
+    const board = await createBoardFromTemplate(
+      c.var.user.id,
+      templateId,
+      location,
+    );
     if (!board) {
       return c.json(
         { error: { code: "conflict", message: "ボードはもうあります" } },

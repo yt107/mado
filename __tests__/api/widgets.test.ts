@@ -365,16 +365,36 @@ describe("PATCH /api/widgets/:widgetId（設定）", () => {
     expect(saved?.settings).toMatchObject({ worldClocks: [] });
   });
 
-  test("設定をまだ作っていない種類は 400", async () => {
-    const res = await send(
-      "PATCH",
-      `/api/widgets/${widgetsByType.weather!.id}`,
-      { settings: { unit: "c" } },
-    );
+  test("天気の設定も、種類ごとのスキーマで確かめる", async () => {
+    const path = `/api/widgets/${widgetsByType.weather!.id}`;
+    let res = await send("PATCH", path, { settings: { unit: "kelvin" } });
     expect(res.status).toBe(400);
-    expect((await res.json()).error.message).toBe(
-      "このウィジェットの設定は、まだ変えられません",
-    );
+
+    res = await send("PATCH", path, {
+      settings: {
+        location: {
+          name: "札幌市",
+          region: "北海道",
+          latitude: 43.06,
+          longitude: 141.35,
+        },
+        unit: "fahrenheit",
+      },
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).settings).toMatchObject({
+      location: { name: "札幌市" },
+      unit: "fahrenheit",
+      refreshMinutes: 30,
+    });
+
+    // 緯度が範囲の外なら断る
+    res = await send("PATCH", path, {
+      settings: {
+        location: { name: "x", latitude: 120, longitude: 0 },
+      },
+    });
+    expect(res.status).toBe(400);
   });
 
   test("他人のウィジェットは 404", async () => {

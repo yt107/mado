@@ -27,9 +27,20 @@ export function widgetErrorResponse(
     case "invalid_settings":
     case "wrong_type":
     case "too_many":
+    case "invalid_input":
       return c.json(
         { error: { code: "validation_error", message: error.message } },
         400,
+      );
+    case "duplicate":
+      return c.json(
+        { error: { code: "conflict", message: error.message } },
+        409,
+      );
+    case "fetch_failed":
+      return c.json(
+        { error: { code: "fetch_failed", message: error.message } },
+        422,
       );
     case "overlap":
       return c.json(

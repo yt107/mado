@@ -36,7 +36,8 @@ Mado の API の一覧と、API 全体の決めごと。OpenAPI は今は書か�
 | 403 | `terms_not_accepted` | 利用規約に同意していない |
 | 403 | `reauthentication_required` | 退会の前の本人確認（Googleでの再ログイン）が必要 |
 | 404 | `not_found` | 見つからない（他人のデータも含む） |
-| 409 | `conflict` | 状態が合わない（ボードを2つ作ろうとした、配置が重なる など） |
+| 409 | `conflict` | 状態が合わない（ボードを2つ作ろうとした、配置が重なる、同じフィードを2回登録した など） |
+| 422 | `fetch_failed` | 外の URL（iCal、RSS）を読めなかった、または iCal・RSS の形ではなかった（登録のとき） |
 
 ## 一覧
 
@@ -95,7 +96,7 @@ Mado の API の一覧と、API 全体の決めごと。OpenAPI は今は書か�
 | GET | `/api/widgets/:widgetId/news-items` | 記事を取得する | 4 |
 
 - iCal の URL は、登録したあとは画面に返さない。非公開の URL は、それだけでカレンダーを読める鍵になるため
-- 地域の検索と天気の API は、使う外部のサービスと一緒に、区切り4で決める。区切り2の初期設定は、テンプレートを選ぶだけにする
+- 天気と地域の検索は、Mado の API を通さず、画面（端末のブラウザ）から Open-Meteo を直接呼ぶ（下の「天気」を参照）
 
 ### 動作確認
 
@@ -167,10 +168,14 @@ Mado の API の一覧と、API 全体の決めごと。OpenAPI は今は書か�
 リクエスト：
 
 ```json
-{ "templateId": "basic" }
+{
+  "templateId": "basic",
+  "location": { "name": "渋谷", "region": "東京都 渋谷区", "latitude": 35.6589, "longitude": 139.70665 }
+}
 ```
 
 - `templateId`：`basic`（ベーシック）、`standby`（スタンバイ）、`family`（ファミリー）、`workdesk`（ワークデスク）、`blank`（白紙）のどれか
+- `location`：初回の設定で選んだ天気の地域（なくてもよい）。テンプレートに天気があれば、天気の設定の `location` に入れる
 - ボードの名前は「マイボード」で作る
 
 201：`GET /api/boards/:boardId` と同じ形
@@ -205,8 +210,9 @@ Mado の API の一覧と、API 全体の決めごと。OpenAPI は今は書か�
 - `page` は1から数える（スマホ縦の2ページ目なら `2`）。`x`、`y` はマスの位置で0から数える
 - ウィジェットは種類の順（時計、天気、カレンダー、ToDo、メモ、カウントダウン、ニュース）に並べる
 - 他人のボードなら 404。ID が UUID の形でなければ 400
-- `settings` の中身は種類ごとに違う（下の「時計の設定」と、区切り4の「ToDo・メモ・カウントダウンの設定」）。天気・カレンダー・ニュースの設定は、作るときに書き足す
+- `settings` の中身は種類ごとに違う（下の「時計の設定」と、区切り4の「ToDo・メモ・カウントダウンの設定」「天気・カレンダー・ニュースの設定」）
 - ToDo のウィジェットには `todoItems`（項目の配列。並び順）、メモのウィジェットには `memo`（`{ body, updatedAt }`。まだ書いていなければ `null`）が付く
+- カレンダーのウィジェットには `calendarSubscriptions`（購読先の配列。URL は含めない）、ニュースのウィジェットには `newsFeeds`（フィードの配列。並び順）が付く
 
 #### 時計の設定（`type: "clock"` の `settings`）
 
@@ -340,3 +346,157 @@ ToDo の項目を、いちばん下に足す。
 | `startDate` | 進み具合のバーの始まり（日付を設定した日。画面が入れる） | `null` |
 
 - 残りの日数は、画面（端末の時刻）で数える。当日は「今日」、過ぎたら「終了」と出す
+
+## 区切り4の API の詳細（天気・カレンダー・ニュース）
+
+### 外の URL を読むときの決まり（SSRF 対策）
+
+カレンダー（iCal）とニュース（RSS・Atom）は、利用者が入力した URL をサーバーが読む。サーバーの内側のネットワークを読まれないように、`src/server/net/safe-fetch.ts` で次のことを守る。
+
+- `https://` で、ポートが 443 のものだけ。`webcal://` は `https://` として読む。URL にユーザー名・パスワードや IP アドレスを書いたもの、`localhost`・`.internal`・`.local` などの名前は断る
+- 名前を DNS で引き（`node:dns` の `resolve4` / `resolve6`）、内側のアドレス（127.0.0.0/8、10.0.0.0/8、172.16.0.0/12、192.168.0.0/16、169.254.0.0/16 のメタデータサーバー、IPv6 の `::1`・`fc00::/7`・`fe80::/10` など）が1つでもあれば断る
+- 転送（リダイレクト）は自動で追わず、1回ごとに同じ確認をする（3回まで）
+- 10秒で打ち切る。大きさは iCal が 5MB、RSS が 2MB まで
+- DNS を確かめたあとに答えを変えられても（DNS リバインディング）、https なので、相手が正しい証明書を出せずにつながらない
+
+### 天気（Open-Meteo）
+
+天気と地域の検索は、Mado の API を通さず、画面から [Open-Meteo](https://open-meteo.com/) を直接呼ぶ（`src/lib/widgets/weather.ts`）。
+
+- Open-Meteo は、無料で使える回数（1日1万回）を IP アドレスごとに数える。ほかの利用者と IP を共有するサーバー（Cloud Run）から呼ぶと、上限に早く当たるため、端末ごとの IP で呼ぶ
+- 予報：`https://api.open-meteo.com/v1/forecast`。座標は小数2桁（約1km）に丸めて送る
+- 地域の検索：`https://geocoding-api.open-meteo.com/v1/search`。日本語の地名は、入力のほかに「市」を付けた形・「市・区・町・村」を外した形も一緒に探す。都道府県の名前（「大阪府」）はその名前の市（「大阪市」）で、「東京」は「東京都」で探す（Open-Meteo には都道府県の名前では載っていないため）
+- データは CC BY 4.0。天気の設定パネルに出典を出す。お金をとらない使い方（広告や有料会員のないアプリ）なので、無料の範囲で使える
+
+### `POST /api/widgets/:widgetId/calendar-subscriptions`
+
+iCal の URL を登録する。一度読んでみて、iCal として読めたものだけを登録する。
+
+リクエスト：`{ "url": "https://calendar.google.com/calendar/ical/…/private-…/basic.ics" }`
+
+201：
+
+```json
+{ "id": "…", "name": "仕事", "color": "blue", "lastFetchedAt": "2026-11-19T01:28:00.000Z", "lastError": null }
+```
+
+- 名前は iCal の `X-WR-CALNAME`（なければ「カレンダー」）。色は、まだ使っていない色を順に選ぶ
+- URL は AES-256-GCM で暗号化して `url_encrypted` に保存する（`src/server/encryption.ts`。鍵は環境変数 `ENCRYPTION_KEY`）。画面には返さない
+- 1つのカレンダーのウィジェットに10個まで。それより多いと 400
+- URL の形が正しくない・内側の URL なら 400、読めない・iCal でなければ 422（`fetch_failed`）
+
+### `PATCH /api/calendar-subscriptions/:subscriptionId`
+
+名前と色を変える。リクエスト：`{ "name": "会社" }`、`{ "color": "purple" }` など
+
+- `name` は1〜50文字。`color` は `blue`・`green`・`red`・`purple`・`orange`・`teal`・`pink`・`yellow`
+
+200：購読先
+
+### `DELETE /api/calendar-subscriptions/:subscriptionId`
+
+204：本文なし
+
+### `GET /api/widgets/:widgetId/calendar-events?from=2026-11-01&to=2026-12-05`
+
+登録したカレンダーを全部読み、期間の予定を返す。`from` と `to` は端末の日付（`to` の日も含む。62日まで）。
+
+200：
+
+```json
+{
+  "subscriptions": [{ "id": "…", "name": "仕事", "color": "blue", "lastFetchedAt": "…", "lastError": null }],
+  "events": [
+    { "id": "…", "subscriptionId": "…", "title": "チーム定例", "start": "2026-11-06T01:00:00.000Z", "end": "2026-11-06T02:00:00.000Z", "allDay": false },
+    { "id": "…", "subscriptionId": "…", "title": "燃えるゴミの日", "start": "2026-11-07", "end": "2026-11-08", "allDay": true }
+  ]
+}
+```
+
+- 繰り返しの予定（毎週など）は1回ずつに展開する。除いた日（EXDATE）や、その回だけの変更（RECURRENCE-ID）、取り消し（STATUS:CANCELLED）も反映する
+- 終日の予定は `"YYYY-MM-DD"`（`end` はその次の日）、ほかは ISO 8601（UTC）。今日・明日のどれに入るかは画面（端末の時刻）で決める
+- 端末の時間帯がどこでも入るよう、期間の前後に1日ずつ広げて返す
+- 読めなかったカレンダーは `lastError` に理由を残し、ほかのカレンダーの予定だけを返す
+- 予定は DB に保存しない（docs/er.md の「DBに持たないもの」）
+
+### `POST /api/widgets/:widgetId/news-feeds`
+
+フィードを登録する。サイトの URL なら、ページの `<link rel="alternate" type="application/rss+xml">`（または atom+xml）からフィードを探す。
+
+リクエスト：`{ "url": "https://zenn.dev/" }`
+
+201：
+
+```json
+{ "id": "…", "title": "Zennのトレンド", "feedUrl": "https://zenn.dev/feed", "sortOrder": 0, "lastFetchedAt": "…", "lastError": null }
+```
+
+- 名前はフィードのタイトル（なければサイトの名前）。いちばん下に足す
+- 1つのニュースのウィジェットに10個まで（400）。同じフィードは2回登録できない（409）
+- フィードが見つからない・読めなければ 422（`fetch_failed`）
+
+### `PATCH /api/news-feeds/:feedId`
+
+名前と並び順を変える。リクエスト：`{ "title": "…" }`、`{ "sortOrder": 0 }`
+
+- `sortOrder` は「何番目（0から数える）に動かすか」。ほかのフィードも 0, 1, 2… に振り直す
+
+200：フィード
+
+### `DELETE /api/news-feeds/:feedId`
+
+204：本文なし
+
+### `GET /api/widgets/:widgetId/news-items`
+
+登録したフィードを全部読み、記事を新しい順に返す（全部で100件まで。1つのフィードからは20件まで）。
+
+200：
+
+```json
+{
+  "feeds": [{ "id": "…", "title": "Zennのトレンド", "feedUrl": "…", "sortOrder": 0, "lastFetchedAt": "…", "lastError": null }],
+  "items": [
+    { "id": "…", "feedId": "…", "title": "…", "link": "https://zenn.dev/…", "publishedAt": "2026-11-19T07:28:27.000Z", "image": null, "summary": "…" }
+  ]
+}
+```
+
+- `image` は、フィードに書かれた画像（`enclosure`、`media:thumbnail` など）。https のものだけ
+- 読めなかったフィードは `lastError` に理由を残す
+- 記事は DB に保存しない
+
+### 天気・カレンダー・ニュースの設定（`PATCH /api/widgets/:widgetId` の `settings`）
+
+**天気（`type: "weather"`）**
+
+| キー | 値 | 初期値 |
+|---|---|---|
+| `location` | `{ name, region, latitude, longitude }`（選んだ地域） | `null` |
+| `showHourly` | 時間ごとの予報 | `true` |
+| `showDaily` | 週間予報（3日間） | `true` |
+| `showHighLow` | 最高・最低気温 | `true` |
+| `showPrecipitation` | 降水確率 | `false` |
+| `unit` | `"celsius"`、`"fahrenheit"` | `"celsius"` |
+| `background` | `"auto"`（天気に連動）、`"dark"`、`"light"`、`"transparent"` | `"auto"` |
+| `refreshMinutes` | `15`、`30`、`60` | `30` |
+
+**カレンダー（`type: "calendar"`）**
+
+| キー | 値 | 初期値 |
+|---|---|---|
+| `showMonth` | 月表示 | `true` |
+| `showToday` | 今日の予定 | `true` |
+| `showTomorrow` | 明日の予定 | `true` |
+| `weekStart` | `"sunday"`、`"monday"` | `"sunday"` |
+| `refreshMinutes` | `15`、`30`、`60` | `30` |
+
+**ニュース（`type: "news"`）**
+
+| キー | 値 | 初期値 |
+|---|---|---|
+| `count` | `"auto"`（大きさに合わせる）、`"3"`、`"5"`、`"10"` | `"auto"` |
+| `showImages` | 画像を出す（2×2 以上） | `true` |
+| `autoRotate` | 見出しを10秒ごとに送る（1×1） | `true` |
+| `dedupe` | 同じ記事（同じリンクか見出し）をまとめる | `true` |
+| `refreshMinutes` | `15`、`30`、`60` | `15` |

@@ -9,6 +9,7 @@ import {
 } from "@/lib/board/schema";
 import { TEMPLATES, type TemplateId } from "@/lib/board/templates";
 import { normalizeSettings } from "@/lib/widgets/settings";
+import type { WeatherLocation } from "@/lib/widgets/weather";
 
 import { db } from "../db";
 import { boards, users, widgetPlacements, widgets } from "../db/schema";
@@ -55,10 +56,12 @@ export async function getBoardDetail(
   });
 }
 
-// テンプレートからボードを作る。もうボードがあれば作らずに null を返す（MVP では1人1つ）
+// テンプレートからボードを作る。もうボードがあれば作らずに null を返す（MVP では1人1つ）。
+// 地域を選んでいたら、天気のウィジェットの設定に入れる（docs/er.md）
 export async function createBoardFromTemplate(
   userId: string,
   templateId: TemplateId,
+  location?: WeatherLocation,
 ): Promise<BoardDetail | null> {
   const template = TEMPLATES[templateId];
 
@@ -96,7 +99,10 @@ export async function createBoardFromTemplate(
         template.widgets.map((widget) => ({
           boardId: board.id,
           type: widget.type,
-          settings: normalizeSettings(widget.type, widget.settings),
+          settings: normalizeSettings(widget.type, {
+            ...widget.settings,
+            ...(widget.type === "weather" && location && { location }),
+          }),
         })),
       )
       .returning({ id: widgets.id, type: widgets.type });

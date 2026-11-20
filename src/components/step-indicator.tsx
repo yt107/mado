@@ -2,8 +2,9 @@ import { Check, ChevronRight } from "lucide-react";
 
 import { cx } from "@/lib/cx";
 
-// はじめるまでの手順（Googleでログイン → 確認 → テンプレート → 地域と表示画面）
-const STEPS = ["Googleでログイン", "確認", "テンプレート", "地域と表示画面"];
+// はじめるまでの手順（Googleでログイン → 確認 → テンプレート → 地域）。
+// 画面設計の「地域と表示画面」は、表示画面を選ばないことにしたので「地域」だけにした（docs/er.md）
+const STEPS = ["Googleでログイン", "確認", "テンプレート", "地域"];
 
 type Props = {
   // 今の手順（1から数える）
