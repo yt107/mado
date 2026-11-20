@@ -1,7 +1,13 @@
 "use client";
 
-import { X, type LucideIcon } from "lucide-react";
+import { ChevronDown, RefreshCw, X, type LucideIcon } from "lucide-react";
 import { useId, type ReactNode } from "react";
+
+import {
+  REFRESH_MINUTES,
+  refreshLabel,
+  type RefreshMinutes,
+} from "@/lib/widgets/refresh";
 
 // 設定パネルの共通の部品（枠、スイッチ、切り替えボタン）
 
@@ -106,9 +112,12 @@ export function Segmented<T extends string>({
   return (
     <fieldset>
       <legend className="mb-2 text-xs font-bold text-ink-2">{legend}</legend>
+      {/* 同じ幅に分けるが、長い言葉（「サイズに合わせる」など）は折り返さず、その分だけ広げる */}
       <div
         className="grid gap-1 rounded-xl bg-raised p-1"
-        style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}
+        style={{
+          gridTemplateColumns: `repeat(${options.length}, minmax(max-content, 1fr))`,
+        }}
       >
         {options.map(([option, label]) => (
           <label
@@ -134,4 +143,91 @@ export function Segmented<T extends string>({
 // 日本語の入力で、変換を決める Enter かどうか（そのときは送らない）
 export function isComposing(event: React.KeyboardEvent) {
   return event.nativeEvent.isComposing || event.keyCode === 229;
+}
+
+// 外から読むウィジェットの更新間隔（15分・30分・1時間）
+export function RefreshSelect({
+  value,
+  onChange,
+}: {
+  value: RefreshMinutes;
+  onChange: (value: RefreshMinutes) => void;
+}) {
+  const id = useId();
+  return (
+    <div>
+      <label htmlFor={id} className="mb-2 block text-xs font-bold text-ink-2">
+        更新間隔
+      </label>
+      <div className="relative">
+        <RefreshCw
+          aria-hidden
+          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-3"
+        />
+        <select
+          id={id}
+          value={value}
+          onChange={(event) =>
+            onChange(Number(event.target.value) as RefreshMinutes)
+          }
+          className="h-10 w-full appearance-none rounded-[10px] border border-line bg-card pr-9 pl-9"
+        >
+          {REFRESH_MINUTES.map((minutes) => (
+            <option key={minutes} value={minutes}>
+              {refreshLabel(minutes)}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          aria-hidden
+          className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-ink-3"
+        />
+      </div>
+    </div>
+  );
+}
+
+// チェックボックス（画面設計「表示する情報」）
+export function CheckRow({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2.5">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="size-4.5 rounded accent-accent"
+      />
+      {label}
+    </label>
+  );
+}
+
+// 外から読んだ状態（「10:28 更新」「取得できません」）。カレンダーとフィードの一覧で使う
+export function FetchStatusText({
+  lastFetchedAt,
+  lastError,
+}: {
+  lastFetchedAt: string | null;
+  lastError: string | null;
+}) {
+  if (lastError) {
+    return <span className="text-danger">取得できません・{lastError}</span>;
+  }
+  if (lastFetchedAt) {
+    const date = new Date(lastFetchedAt);
+    return (
+      <span>
+        {date.getHours()}:{String(date.getMinutes()).padStart(2, "0")} 更新
+      </span>
+    );
+  }
+  return null;
 }

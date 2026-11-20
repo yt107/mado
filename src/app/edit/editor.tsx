@@ -31,6 +31,11 @@ import {
 import { clampSize, findFreeSpot } from "@/lib/board/layout";
 import type { BoardDetail, BoardWidget } from "@/lib/board/schema";
 import type { Placement } from "@/lib/board/templates";
+import type {
+  CalendarColor,
+  CalendarSubscription,
+} from "@/lib/widgets/calendar";
+import type { NewsFeed } from "@/lib/widgets/news";
 import { SETTINGS_SCHEMAS } from "@/lib/widgets/settings";
 import type { TodoItem } from "@/lib/widgets/todo";
 import {
@@ -39,10 +44,13 @@ import {
   type WidgetType,
 } from "@/lib/widgets/types";
 
+import { CalendarSettingsPanel } from "./calendar-settings-panel";
 import { ClockSettingsPanel } from "./clock-settings-panel";
 import { CountdownSettingsPanel } from "./countdown-settings-panel";
 import { MemoSettingsPanel } from "./memo-settings-panel";
+import { NewsSettingsPanel } from "./news-settings-panel";
 import { TodoSettingsPanel } from "./todo-settings-panel";
+import { WeatherSettingsPanel } from "./weather-settings-panel";
 import { EditBoard, type BoardHandle, type DropPreview } from "./edit-board";
 import { EditorHeader } from "./editor-header";
 import { useDebouncedSaves } from "./use-debounced-saves";
@@ -60,6 +68,27 @@ type PaletteDrag = {
   y: number;
   preview: DropPreview | null;
 };
+
+// API のエラーの本文から、見せる文を取り出す（docs/api.md のエラーの形）
+async function errorMessageOf(res: Response, fallback: string) {
+  try {
+    const body: unknown = await res.json();
+    if (
+      typeof body === "object" &&
+      body !== null &&
+      "error" in body &&
+      typeof body.error === "object" &&
+      body.error !== null &&
+      "message" in body.error &&
+      typeof body.error.message === "string"
+    ) {
+      return body.error.message;
+    }
+  } catch {
+    // 本文が JSON でなければ、決まった文を出す
+  }
+  return fallback;
+}
 
 function subscribeResize(callback: () => void) {
   window.addEventListener("resize", callback);
@@ -291,6 +320,152 @@ export function Editor({ board, user }: Props) {
     );
   }
 
+  // カレンダーの購読先とニュースのフィード（登録は結果を待ち、変更と削除は画面を先に変える）
+  function updateWidget(
+    widgetId: string,
+    update: (w: BoardWidget) => BoardWidget,
+  ) {
+    setWidgets((current) =>
+      current.map((w) => (w.id === widgetId ? update(w) : w)),
+    );
+  }
+
+  async function addCalendar(widgetId: string, url: string) {
+    let res: Response;
+    try {
+      res = await api.widgets[":widgetId"]["calendar-subscriptions"].$post({
+        param: { widgetId },
+        json: { url },
+      });
+    } catch {
+      return "通信できませんでした。時間をおいてお試しください";
+    }
+    if (res.status === 401) {
+      router.push("/login");
+      return "ログインし直してください";
+    }
+    if (!res.ok) {
+      return errorMessageOf(res, "登録できませんでした");
+    }
+    const created = (await res.json()) as CalendarSubscription;
+    updateWidget(widgetId, (w) => ({
+      ...w,
+      calendarSubscriptions: [...(w.calendarSubscriptions ?? []), created],
+    }));
+    announce(`「${created.name}」を登録しました`);
+    return null;
+  }
+
+  function updateCalendar(
+    widgetId: string,
+    subscriptionId: string,
+    patch: { name?: string; color?: CalendarColor },
+  ) {
+    updateWidget(widgetId, (w) => ({
+      ...w,
+      calendarSubscriptions: (w.calendarSubscriptions ?? []).map((s) =>
+        s.id === subscriptionId ? { ...s, ...patch } : s,
+      ),
+    }));
+    saver.run(() =>
+      api["calendar-subscriptions"][":subscriptionId"].$patch({
+        param: { subscriptionId },
+        json: patch,
+      }),
+    );
+  }
+
+  function deleteCalendar(widgetId: string, subscriptionId: string) {
+    const name = widgets
+      .find((w) => w.id === widgetId)
+      ?.calendarSubscriptions?.find((s) => s.id === subscriptionId)?.name;
+    updateWidget(widgetId, (w) => ({
+      ...w,
+      calendarSubscriptions: (w.calendarSubscriptions ?? []).filter(
+        (s) => s.id !== subscriptionId,
+      ),
+    }));
+    saver.run(() =>
+      api["calendar-subscriptions"][":subscriptionId"].$delete({
+        param: { subscriptionId },
+      }),
+    );
+    announce(`「${name ?? "カレンダー"}」の登録をやめました`);
+  }
+
+  async function addFeed(widgetId: string, url: string) {
+    let res: Response;
+    try {
+      res = await api.widgets[":widgetId"]["news-feeds"].$post({
+        param: { widgetId },
+        json: { url },
+      });
+    } catch {
+      return "通信できませんでした。時間をおいてお試しください";
+    }
+    if (res.status === 401) {
+      router.push("/login");
+      return "ログインし直してください";
+    }
+    if (!res.ok) {
+      return errorMessageOf(res, "登録できませんでした");
+    }
+    const created = (await res.json()) as NewsFeed;
+    updateWidget(widgetId, (w) => ({
+      ...w,
+      newsFeeds: [...(w.newsFeeds ?? []), created],
+    }));
+    announce(`「${created.title}」を登録しました`);
+    return null;
+  }
+
+  function renameFeed(widgetId: string, feedId: string, title: string) {
+    updateWidget(widgetId, (w) => ({
+      ...w,
+      newsFeeds: (w.newsFeeds ?? []).map((f) =>
+        f.id === feedId ? { ...f, title } : f,
+      ),
+    }));
+    saver.run(() =>
+      api["news-feeds"][":feedId"].$patch({
+        param: { feedId },
+        json: { title },
+      }),
+    );
+  }
+
+  function moveFeed(widgetId: string, feedId: string, toIndex: number) {
+    updateWidget(widgetId, (w) => {
+      const sorted = [...(w.newsFeeds ?? [])].sort(
+        (a, b) => a.sortOrder - b.sortOrder,
+      );
+      const moving = sorted.find((f) => f.id === feedId);
+      if (!moving) return w;
+      const rest = sorted.filter((f) => f.id !== feedId);
+      rest.splice(toIndex, 0, moving);
+      return {
+        ...w,
+        newsFeeds: rest.map((f, index) => ({ ...f, sortOrder: index })),
+      };
+    });
+    saver.run(() =>
+      api["news-feeds"][":feedId"].$patch({
+        param: { feedId },
+        json: { sortOrder: toIndex },
+      }),
+    );
+  }
+
+  function deleteFeed(widgetId: string, feedId: string) {
+    updateWidget(widgetId, (w) => ({
+      ...w,
+      newsFeeds: (w.newsFeeds ?? []).filter((f) => f.id !== feedId),
+    }));
+    saver.run(() =>
+      api["news-feeds"][":feedId"].$delete({ param: { feedId } }),
+    );
+  }
+
   function statusOf(type: WidgetType): PaletteStatus {
     const widget = widgets.find((w) => w.type === type);
     if (!widget) return "new";
@@ -418,8 +593,47 @@ export function Editor({ board, user }: Props) {
             onClose={closeSettings}
           />
         );
-      default:
-        return null;
+      case "weather":
+        return (
+          <WeatherSettingsPanel
+            settings={widget.settings}
+            sizeLabel={sizeLabel}
+            onSettingsChange={(settings) => updateSettings(widget.id, settings)}
+            onClose={closeSettings}
+          />
+        );
+      case "calendar":
+        return (
+          <CalendarSettingsPanel
+            settings={widget.settings}
+            subscriptions={widget.calendarSubscriptions ?? []}
+            sizeLabel={sizeLabel}
+            onSettingsChange={(settings) => updateSettings(widget.id, settings)}
+            onAdd={(url) => addCalendar(widget.id, url)}
+            onUpdate={(subscriptionId, patch) =>
+              updateCalendar(widget.id, subscriptionId, patch)
+            }
+            onDelete={(subscriptionId) =>
+              deleteCalendar(widget.id, subscriptionId)
+            }
+            onClose={closeSettings}
+          />
+        );
+      case "news":
+        return (
+          <NewsSettingsPanel
+            settings={widget.settings}
+            feeds={widget.newsFeeds ?? []}
+            sizeLabel={sizeLabel}
+            onSettingsChange={(settings) => updateSettings(widget.id, settings)}
+            onAdd={(url) => addFeed(widget.id, url)}
+            onRename={(feedId, title) => renameFeed(widget.id, feedId, title)}
+            onMove={(feedId, toIndex) => moveFeed(widget.id, feedId, toIndex)}
+            onDelete={(feedId) => deleteFeed(widget.id, feedId)}
+            onAnnounce={announce}
+            onClose={closeSettings}
+          />
+        );
     }
   }
   const panel = settingsWidget ? settingsPanel(settingsWidget) : null;

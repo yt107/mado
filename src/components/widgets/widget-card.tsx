@@ -4,12 +4,15 @@ import type { Placement } from "@/lib/board/templates";
 import { cx } from "@/lib/cx";
 import { readMemoSettings, type MemoSettings } from "@/lib/widgets/memo";
 import { WIDGET_LABELS } from "@/lib/widgets/types";
+import { readWeatherSettings } from "@/lib/widgets/weather";
 
+import { CalendarWidget } from "./calendar-widget";
 import { ClockWidget } from "./clock-widget";
 import { CountdownWidget } from "./countdown-widget";
 import { MemoWidget } from "./memo-widget";
-import { PlaceholderWidget } from "./placeholder-widget";
+import { NewsWidget } from "./news-widget";
 import { TodoWidget } from "./todo-widget";
+import { WeatherWidget } from "./weather-widget";
 
 // メモの背景の色（画面設計「メモの設定」の5色）。濃い色だけ、文字を明るくする
 const MEMO_TONES: Record<MemoSettings["color"], string> = {
@@ -20,10 +23,18 @@ const MEMO_TONES: Record<MemoSettings["color"], string> = {
   dark: "bg-[#2a2f38] text-[#f3f2ee]",
 };
 
+// 天気の背景（設定の「背景」）。「天気に連動」の色は、天気のウィジェットの中で塗る
+const WEATHER_TONES = {
+  auto: "relative isolate bg-linear-to-b from-weather-from to-weather-to text-white",
+  dark: "bg-[#1b1d22] text-[#f3f2ee]",
+  light: "bg-white text-[#17181c]",
+  transparent: "bg-transparent text-ink",
+} as const;
+
 // 種類ごとの色（画面設計：天気は青のグラデーション、メモは設定の色、ほかはカード色）
 function toneOf(widget: BoardWidget) {
   if (widget.type === "weather") {
-    return "bg-linear-to-b from-weather-from to-weather-to text-white";
+    return WEATHER_TONES[readWeatherSettings(widget.settings).background];
   }
   if (widget.type === "memo") {
     return MEMO_TONES[readMemoSettings(widget.settings).color];
@@ -68,7 +79,12 @@ export function WidgetBody({
       data-size={size}
       className={cx("widget size-full", toneOf(widget), className)}
     >
-      <WidgetContent widget={widget} size={size} interactive={interactive} />
+      <WidgetContent
+        widget={widget}
+        size={size}
+        placement={placement}
+        interactive={interactive}
+      />
     </div>
   );
 }
@@ -76,23 +92,30 @@ export function WidgetBody({
 function WidgetContent({
   widget,
   size,
+  placement,
   interactive,
 }: {
   widget: BoardWidget;
   size: WidgetSize;
+  placement: Placement;
   interactive: boolean;
 }) {
+  const cells = { w: placement.w, h: placement.h };
   switch (widget.type) {
     case "clock":
       return <ClockWidget settings={widget.settings} size={size} />;
+    case "weather":
+      return <WeatherWidget widget={widget} size={cells} />;
+    case "calendar":
+      return <CalendarWidget widget={widget} size={cells} />;
+    case "news":
+      return <NewsWidget widget={widget} size={cells} />;
     case "todo":
       return <TodoWidget widget={widget} interactive={interactive} />;
     case "memo":
       return <MemoWidget widget={widget} />;
     case "countdown":
       return <CountdownWidget widget={widget} />;
-    default:
-      return <PlaceholderWidget type={widget.type} />;
   }
 }
 

@@ -22,6 +22,13 @@
       "when": 1795023901304,
       "tag": "0002_todo_items_and_memos",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795099001020,
+      "tag": "0003_calendar_subscriptions_and_news_feeds",
+      "breakpoints": true
     }
   ]
 }

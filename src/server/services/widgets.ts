@@ -10,6 +10,7 @@ import {
 } from "@/lib/board/schema";
 import type { Placement } from "@/lib/board/templates";
 import { normalizeSettings, SETTINGS_SCHEMAS } from "@/lib/widgets/settings";
+import { WIDGET_LABELS, type WidgetType } from "@/lib/widgets/types";
 
 import { db } from "../db";
 import { boards, widgetPlacements, widgets } from "../db/schema";
@@ -26,8 +27,14 @@ export type WidgetError =
   | { code: "invalid_settings"; message: string }
   // 中身の操作で、種類が合わないとき（ToDo でないウィジェットに項目を足す、など）
   | { code: "wrong_type"; message: string }
-  // ToDo の項目が多すぎるとき
-  | { code: "too_many"; message: string };
+  // ToDo の項目や、カレンダー・フィードの登録が多すぎるとき
+  | { code: "too_many"; message: string }
+  // 入力が正しくないとき（URL の形など）
+  | { code: "invalid_input"; message: string }
+  // 同じものがもう登録されているとき
+  | { code: "duplicate"; message: string }
+  // 外の URL（iCal、RSS）を読めなかったとき
+  | { code: "fetch_failed"; message: string };
 
 export type Result<T> =
   { ok: true; value: T } | { ok: false; error: WidgetError };
@@ -71,6 +78,31 @@ async function readWidget(widgetId: string): Promise<BoardWidget> {
     throw new Error("ウィジェットが見つかりません");
   }
   return toBoardWidget(widget);
+}
+
+// 自分のウィジェットを、ボードの行をロックしてから読む（同じボードへの編集を1つずつ進める）
+export async function lockOwnedWidget(
+  tx: Tx,
+  userId: string,
+  widgetId: string,
+) {
+  const [row] = await tx
+    .select({ id: widgets.id, type: widgets.type })
+    .from(widgets)
+    .innerJoin(boards, eq(boards.id, widgets.boardId))
+    .where(and(eq(widgets.id, widgetId), eq(boards.userId, userId)))
+    .for("update", { of: boards });
+  return row ?? null;
+}
+
+// 中身の操作で、ウィジェットの種類が合わないとき（「ToDo のウィジェットではありません」）
+export function wrongType(expected: WidgetType) {
+  const label = WIDGET_LABELS[expected];
+  const space = /[A-Za-z]$/.test(label) ? " " : "";
+  return fail({
+    code: "wrong_type",
+    message: `${label}${space}のウィジェットではありません`,
+  });
 }
 
 // 自分のウィジェットなら、種類とボードを返す

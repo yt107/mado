@@ -1,10 +1,11 @@
 "use client";
 
-import { ArrowRight, Check, Info } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Info } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { BoardPreview } from "@/components/board/board-preview";
+import { LocationSearch } from "@/components/location-search";
 import { TargetPicker } from "@/components/board/target-picker";
 import { Logo } from "@/components/logo";
 import { StepIndicator } from "@/components/step-indicator";
@@ -18,27 +19,36 @@ import {
   type TemplateId,
 } from "@/lib/board/templates";
 import { WIDGET_LABELS } from "@/lib/widgets/types";
+import type { WeatherLocation } from "@/lib/widgets/weather";
 
 import { TemplateThumbnail } from "./template-thumbnail";
 
 const UNEXPECTED_ERROR =
   "うまくいきませんでした。時間をおいて、もう一度お試しください";
 
-// テンプレートの選択画面（初回の設定）。選んだテンプレートでボードを作り、表示モードへ移る
+// 初回の設定：テンプレートの選択 → 天気の地域（天気が入っているテンプレートだけ）。
+// 選んだテンプレートでボードを作り、表示モードへ移る
 export function TemplatePicker() {
   const router = useRouter();
   const [templateId, setTemplateId] = useState<TemplateId>("basic");
   const [target, setTarget] = useState<DisplayTarget>("pc");
+  const [step, setStep] = useState<"template" | "region">("template");
+  const [location, setLocation] = useState<WeatherLocation | null>(null);
   const [error, setError] = useState<string | null>(null);
   // 送っているあいだは、ボタンを押せないようにする（2回送らないため）
   const [isPending, startTransition] = useTransition();
 
   const template = TEMPLATES[templateId];
+  const hasWeather = template.widgets.some((w) => w.type === "weather");
 
-  function create(id: TemplateId) {
+  function create(id: TemplateId, chosen: WeatherLocation | null = null) {
     setError(null);
     startTransition(async () => {
-      const res = await api.boards.$post({ json: { templateId: id } });
+      const res = await api.boards.$post({
+        json: chosen
+          ? { templateId: id, location: chosen }
+          : { templateId: id },
+      });
       // 401 と 403 はミドルウェアが返すので、API の型には出てこない。数として比べる
       const status = res.status as number;
       if (status === 401) {
@@ -60,18 +70,36 @@ export function TemplatePicker() {
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    create(templateId);
+    if (step === "template" && hasWeather) {
+      setStep("region");
+      return;
+    }
+    create(templateId, step === "region" ? location : null);
   }
+
+  // プレビューの天気には、選んだ地域の名前を出す
+  const previewWidgets = templateWidgets(templateId, { withSample: true }).map(
+    (widget) =>
+      widget.type === "weather" && location
+        ? { ...widget, settings: { ...widget.settings, location } }
+        : widget,
+  );
 
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface px-6">
         <Logo />
-        <StepIndicator current={3} variant="plain" className="hidden lg:flex" />
-        {/* スキップしたら、白紙のボードで始める */}
+        <StepIndicator
+          current={step === "template" ? 3 : 4}
+          variant="plain"
+          className="hidden lg:flex"
+        />
+        {/* テンプレートの選択でスキップしたら、白紙のボードで始める。地域でスキップしたら、地域なしで作る */}
         <button
           type="button"
-          onClick={() => create("blank")}
+          onClick={() =>
+            step === "template" ? create("blank") : create(templateId)
+          }
           disabled={isPending}
           className="flex items-center gap-1.5 rounded px-2 py-1 text-sm text-ink-2 hover:text-ink disabled:opacity-60"
         >
@@ -84,55 +112,79 @@ export function TemplatePicker() {
         onSubmit={handleSubmit}
         className="grid flex-1 lg:grid-cols-[460px_minmax(0,1fr)]"
       >
-        <section className="bg-surface px-6 py-10 lg:border-r lg:border-line lg:px-8">
-          <h1 className="text-3xl font-bold">テンプレートを選択</h1>
-          <p className="mt-4 text-sm leading-relaxed text-ink-2">
-            ウィジェットが配置された状態から始められます。あとから自由に追加・移動・取り外しできます。
-          </p>
-
-          <fieldset className="mt-8">
-            <legend className="sr-only">テンプレート</legend>
-            <div className="flex flex-col gap-3">
-              {TEMPLATE_IDS.map((id) => {
-                const t = TEMPLATES[id];
-                return (
-                  <label
-                    key={id}
-                    className="group relative flex cursor-pointer items-center gap-4 rounded-xl border border-transparent p-3 hover:bg-card has-checked:border-accent has-checked:bg-card has-focus-visible:outline-2 has-focus-visible:outline-accent"
-                  >
-                    <input
-                      type="radio"
-                      name="templateId"
-                      value={id}
-                      checked={templateId === id}
-                      onChange={() => setTemplateId(id)}
-                      className="sr-only"
-                    />
-                    <TemplateThumbnail template={t} />
-                    <span className="min-w-0">
-                      <span className="block font-bold">{t.name}</span>
-                      <span className="mt-1 block text-xs leading-relaxed text-ink-2">
-                        {t.description}
-                      </span>
-                      <span className="mt-1 block text-[0.6875rem] text-ink-3">
-                        {t.widgets.length > 0
-                          ? `${t.widgets.length} ウィジェット`
-                          : "ウィジェットなし"}
-                      </span>
-                    </span>
-                    {/* 選んでいるものに、チェックの印を付ける */}
-                    <span
-                      aria-hidden
-                      className="absolute top-3 right-3 hidden size-5 place-items-center rounded-full bg-accent text-on-accent group-has-checked:grid"
-                    >
-                      <Check className="size-3.5" />
-                    </span>
-                  </label>
-                );
-              })}
+        {step === "region" ? (
+          <section className="bg-surface px-6 py-10 lg:border-r lg:border-line lg:px-8">
+            <h1 className="text-3xl font-bold">天気の地域</h1>
+            <p className="mt-4 text-sm leading-relaxed text-ink-2">
+              天気のウィジェットに使う地域を選びます。あとから天気の設定で変えられます。
+            </p>
+            <div className="mt-8">
+              <LocationSearch
+                label="天気の地域"
+                value={location}
+                onChange={setLocation}
+              />
             </div>
-          </fieldset>
-        </section>
+            <button
+              type="button"
+              onClick={() => setStep("template")}
+              className="mt-8 flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink"
+            >
+              <ArrowLeft aria-hidden className="size-4" />
+              テンプレートを選び直す
+            </button>
+          </section>
+        ) : (
+          <section className="bg-surface px-6 py-10 lg:border-r lg:border-line lg:px-8">
+            <h1 className="text-3xl font-bold">テンプレートを選択</h1>
+            <p className="mt-4 text-sm leading-relaxed text-ink-2">
+              ウィジェットが配置された状態から始められます。あとから自由に追加・移動・取り外しできます。
+            </p>
+
+            <fieldset className="mt-8">
+              <legend className="sr-only">テンプレート</legend>
+              <div className="flex flex-col gap-3">
+                {TEMPLATE_IDS.map((id) => {
+                  const t = TEMPLATES[id];
+                  return (
+                    <label
+                      key={id}
+                      className="group relative flex cursor-pointer items-center gap-4 rounded-xl border border-transparent p-3 hover:bg-card has-checked:border-accent has-checked:bg-card has-focus-visible:outline-2 has-focus-visible:outline-accent"
+                    >
+                      <input
+                        type="radio"
+                        name="templateId"
+                        value={id}
+                        checked={templateId === id}
+                        onChange={() => setTemplateId(id)}
+                        className="sr-only"
+                      />
+                      <TemplateThumbnail template={t} />
+                      <span className="min-w-0">
+                        <span className="block font-bold">{t.name}</span>
+                        <span className="mt-1 block text-xs leading-relaxed text-ink-2">
+                          {t.description}
+                        </span>
+                        <span className="mt-1 block text-[0.6875rem] text-ink-3">
+                          {t.widgets.length > 0
+                            ? `${t.widgets.length} ウィジェット`
+                            : "ウィジェットなし"}
+                        </span>
+                      </span>
+                      {/* 選んでいるものに、チェックの印を付ける */}
+                      <span
+                        aria-hidden
+                        className="absolute top-3 right-3 hidden size-5 place-items-center rounded-full bg-accent text-on-accent group-has-checked:grid"
+                      >
+                        <Check className="size-3.5" />
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+          </section>
+        )}
 
         <section
           aria-labelledby="preview-title"
@@ -153,7 +205,7 @@ export function TemplatePicker() {
           </div>
 
           <BoardPreview
-            widgets={templateWidgets(templateId, { withSample: true })}
+            widgets={previewWidgets}
             target={target}
             maxHeight="52vh"
           />
@@ -180,7 +232,9 @@ export function TemplatePicker() {
           <div className="mt-auto flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6">
             <p className="flex items-center gap-2 text-xs text-ink-3">
               <Info aria-hidden className="size-3.5 shrink-0" />
-              ボードを作ったら、表示モードで開きます
+              {step === "region"
+                ? "地域は、あとから天気の設定で変えられます"
+                : "ボードを作ったら、表示モードで開きます"}
             </p>
             <div className="flex flex-col items-end gap-2">
               <p role="alert" className="text-sm text-danger">
@@ -191,7 +245,11 @@ export function TemplatePicker() {
                 disabled={isPending}
                 className="flex h-12 items-center gap-2 rounded-[10px] bg-accent px-6 font-bold text-on-accent transition-opacity hover:opacity-90 disabled:opacity-60"
               >
-                このテンプレートで始める
+                {step === "region"
+                  ? "ダッシュボードを作成"
+                  : hasWeather
+                    ? "次へ（天気の地域）"
+                    : "このテンプレートで始める"}
                 <ArrowRight aria-hidden className="size-4" />
               </button>
             </div>

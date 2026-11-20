@@ -1,6 +1,9 @@
 import * as z from "zod";
 
+import { calendarSubscriptionSchema } from "../widgets/calendar";
 import { memoBodySchema } from "../widgets/memo";
+import { newsFeedSchema } from "../widgets/news";
+import { weatherLocationSchema } from "../widgets/weather";
 import { todoTitleSchema } from "../widgets/todo";
 import { WIDGET_TYPES } from "../widgets/types";
 import { DISPLAY_TARGETS } from "./display-targets";
@@ -11,6 +14,8 @@ import { TEMPLATE_IDS } from "./templates";
 
 export const createBoardSchema = z.object({
   templateId: z.enum(TEMPLATE_IDS, { error: "テンプレートを選んでください" }),
+  // 初回の設定で選んだ天気の地域（スキップしたら送らない）。天気のウィジェットの設定に入れる
+  location: weatherLocationSchema.optional(),
 });
 
 // 置く場所と大きさ（編集モードから送る）。DB の列は smallint なので、大きすぎる値も断る
@@ -78,6 +83,10 @@ export const widgetSchema = z.object({
   todoItems: z.array(todoItemSchema).optional(),
   // メモのウィジェットだけ：本文（まだ書いていなければ null）
   memo: memoSchema.nullable().optional(),
+  // カレンダーのウィジェットだけ：購読先（URL は返さない）
+  calendarSubscriptions: z.array(calendarSubscriptionSchema).optional(),
+  // ニュースのウィジェットだけ：フィード（並び順）
+  newsFeeds: z.array(newsFeedSchema).optional(),
 });
 
 // ToDo の項目を足す・変える（docs/api.md の区切り4）

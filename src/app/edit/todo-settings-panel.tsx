@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, GripVertical, Info, ListTodo, Plus, X } from "lucide-react";
-import { useRef, useState, type PointerEvent } from "react";
+import { useState } from "react";
 
 import { cx } from "@/lib/cx";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@/lib/widgets/todo";
 
 import { isComposing, PanelShell, Switch } from "./panel-parts";
+import { useDragSort } from "./use-drag-sort";
 
 type Props = {
   settings: Record<string, unknown>;
@@ -46,59 +47,14 @@ export function TodoSettingsPanel({
   const s = readTodoSettings(settings);
   const sorted = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
 
-  // つまみをドラッグして並べ替える。動かしているあいだは、落とす場所に並べて見せる
-  const listRef = useRef<HTMLUListElement>(null);
-  const [drag, setDrag] = useState<{ id: string; index: number } | null>(null);
-  const ordered = drag
-    ? (() => {
-        const rest = sorted.filter((item) => item.id !== drag.id);
-        const moving = sorted.find((item) => item.id === drag.id);
-        return moving
-          ? [...rest.slice(0, drag.index), moving, ...rest.slice(drag.index)]
-          : sorted;
-      })()
-    : sorted;
-
-  function indexAt(clientY: number, movingId: string) {
-    const rows = Array.from(
-      listRef.current?.querySelectorAll<HTMLElement>("[data-item]") ?? [],
-    ).filter((row) => row.dataset.item !== movingId);
-    // 指より上にある項目の数が、落とす場所の番号
-    return rows.filter((row) => {
-      const rect = row.getBoundingClientRect();
-      return rect.top + rect.height / 2 < clientY;
-    }).length;
-  }
-
-  function startDrag(event: PointerEvent<HTMLElement>, item: TodoItem) {
-    if (event.button !== 0) return;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    setDrag({ id: item.id, index: sorted.indexOf(item) });
-  }
-
-  function moveDrag(event: PointerEvent<HTMLElement>) {
-    if (!drag) return;
-    const index = indexAt(event.clientY, drag.id);
-    if (index !== drag.index) setDrag({ ...drag, index });
-  }
-
-  function endDrag() {
-    if (!drag) return;
-    const from = sorted.findIndex((item) => item.id === drag.id);
-    if (from !== drag.index) {
-      onMove(drag.id, drag.index);
-      onAnnounce(`${drag.index + 1}番目に動かしました`);
-    }
-    setDrag(null);
-  }
-
-  function moveByKey(item: TodoItem, delta: number) {
-    const from = sorted.indexOf(item);
-    const to = from + delta;
-    if (to < 0 || to >= sorted.length) return;
-    onMove(item.id, to);
-    onAnnounce(`「${item.title}」を${to + 1}番目に動かしました`);
-  }
+  // つまみをドラッグして並べ替える（↑↓ キーでも動かせる）
+  const { listRef, ordered, draggingId, handleProps } = useDragSort(
+    sorted,
+    (item, toIndex) => {
+      onMove(item.id, toIndex);
+      onAnnounce(`「${item.title}」を${toIndex + 1}番目に動かしました`);
+    },
+  );
 
   const [draft, setDraft] = useState("");
   const full = items.length >= TODO_ITEMS_MAX;
@@ -122,7 +78,7 @@ export function TodoSettingsPanel({
               data-item={item.id}
               className={cx(
                 "flex items-center gap-1 rounded-lg bg-raised py-1 pr-1 pl-1",
-                drag?.id === item.id && "opacity-60 ring-2 ring-accent",
+                draggingId === item.id && "opacity-60 ring-2 ring-accent",
               )}
             >
               {/* つまみ：ドラッグで並べ替え。選んで ↑↓ キーでも動かせる */}
@@ -130,15 +86,7 @@ export function TodoSettingsPanel({
                 type="button"
                 aria-label={`「${item.title}」を並べ替える（${index + 1}番目。↑↓キーで動かす）`}
                 className="grid size-7 shrink-0 cursor-grab touch-none place-items-center rounded-md text-ink-3 select-none hover:text-ink"
-                onPointerDown={(event) => startDrag(event, item)}
-                onPointerMove={moveDrag}
-                onLostPointerCapture={endDrag}
-                onKeyDown={(event) => {
-                  if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-                    event.preventDefault();
-                    moveByKey(item, event.key === "ArrowUp" ? -1 : 1);
-                  }
-                }}
+                {...handleProps(item)}
               >
                 <GripVertical aria-hidden className="size-4" />
               </button>
