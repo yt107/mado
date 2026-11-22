@@ -17,7 +17,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Next.js 16（App Router、`src/` あり、Turbopack、Cache Components）、React 19、TypeScript、Tailwind CSS 4
 - API は Hono。本体は `src/server/app.ts`、Next.js とは `src/app/api/[[...route]]/route.ts` でつなぐ
 - テストは Vitest（`__tests__/`）。API は `app.request()` を使い、サーバーを起動せずにテストする
-- デプロイ先は Google Cloud Run（Docker、`output: "standalone"`）。`main` に push すると、GitHub Actions が CI のあとに自動でデプロイする
+- デプロイ先は Google Cloud Run（Docker、`output: "standalone"`）。`main` に push すると、GitHub Actions が CI のあとに自動でデプロイする。本番の環境変数は `.github/workflows/ci.yml` の `deploy` に書き、秘密の値は Secret Manager から渡す
+- 本番の DB（Supabase の mado-prod）へのマイグレーションは自動では流れない。マイグレーションを含むプルリクエストは、マージの前に手元から流す（`DATABASE_URL="$(gcloud secrets versions access latest --secret=DATABASE_URL --project mado-514617)" npm run db:migrate`）
 - パッケージマネージャーは npm
 
 ## コマンド
