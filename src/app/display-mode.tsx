@@ -21,6 +21,7 @@ import {
 } from "@/lib/board/display-targets";
 import type { BoardDetail } from "@/lib/board/schema";
 import { cx } from "@/lib/cx";
+import { useSessionKeepAlive } from "@/lib/hooks/use-session-keep-alive";
 
 // 操作バーを隠すまでの時間と、ボードを読み直す間隔
 const HIDE_AFTER_MS = 3000;
@@ -80,6 +81,8 @@ function subscribeFullscreen(callback: () => void) {
 // 表示モード。編集用のボタンを隠し、ウィジェットだけを画面いっぱいに出す
 export function DisplayMode({ board }: { board: BoardDetail }) {
   const router = useRouter();
+  // 開いているあいだは、ログインの期限を延ばす（表示用の端末がログアウトしないように）
+  useSessionKeepAlive();
 
   const fixedTarget = useSyncExternalStore(
     subscribeFixedTarget,

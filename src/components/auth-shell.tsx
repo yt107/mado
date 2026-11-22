@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { Logo } from "./logo";
+import { SiteFooterLinks } from "./site-footer-links";
 
 type Props = {
   children: ReactNode;
@@ -24,7 +25,10 @@ export function AuthShell({
         <main className="flex flex-1 items-center py-12">
           <div className="mx-auto w-full max-w-100">{children}</div>
         </main>
-        <footer className="text-xs text-ink-3">© 2026 Mado</footer>
+        <footer className="flex flex-wrap items-center justify-between gap-3 text-xs">
+          <span className="text-ink-3">© 2026 Mado</span>
+          <SiteFooterLinks />
+        </footer>
       </div>
 
       <aside

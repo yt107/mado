@@ -5,7 +5,14 @@ import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { cx } from "@/lib/cx";
 
-export function GoogleSignInButton({ className }: { className?: string }) {
+export function GoogleSignInButton({
+  className,
+  disabled = false,
+}: {
+  className?: string;
+  // Google のログインが使えないブラウザでは、押せないようにする
+  disabled?: boolean;
+}) {
   // Google の画面へ移るまでのあいだ、2回押せないようにする
   const [pending, setPending] = useState(false);
 
@@ -28,7 +35,7 @@ export function GoogleSignInButton({ className }: { className?: string }) {
     <button
       type="button"
       onClick={signIn}
-      disabled={pending}
+      disabled={pending || disabled}
       className={cx(
         "flex h-12 w-full items-center justify-center gap-3 rounded-[10px] border border-black/10 bg-white font-medium text-[#1f1f1f] transition-opacity hover:bg-[#f7f7f7] disabled:opacity-60",
         className,

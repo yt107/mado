@@ -43,6 +43,7 @@ import {
   WIDGET_LABELS,
   type WidgetType,
 } from "@/lib/widgets/types";
+import { useSessionKeepAlive } from "@/lib/hooks/use-session-keep-alive";
 
 import { CalendarSettingsPanel } from "./calendar-settings-panel";
 import { ClockSettingsPanel } from "./clock-settings-panel";
@@ -98,6 +99,8 @@ function subscribeResize(callback: () => void) {
 // 編集モード。操作するたびに、画面をすぐ変えてから保存する（失敗したらサーバーの状態に戻す）
 export function Editor({ board, user }: Props) {
   const router = useRouter();
+  // 開いているあいだは、ログインの期限を延ばす（表示用の端末がログアウトしないように）
+  useSessionKeepAlive();
   const [widgets, setWidgets] = useState<BoardWidget[]>(board.widgets);
 
   // 最初は、今の画面の大きさに合う表示先で開く（docs/er.md）。選び直したら、それを使う

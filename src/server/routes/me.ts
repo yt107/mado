@@ -6,6 +6,7 @@ import { auth } from "../auth";
 import { db } from "../db";
 import { users } from "../db/schema";
 import { requireAuth } from "../middleware/require-auth";
+import { requireConsent } from "../middleware/require-consent";
 import { zValidator } from "../validator";
 
 // 返す値の形（docs/api.md の GET /api/me）
@@ -29,21 +30,44 @@ const toMe = (user: typeof auth.$Infer.Session.user) =>
 // 退会の前に再ログインしてから、消せるまでの時間（10分）
 const REAUTH_WINDOW_MS = 10 * 60 * 1000;
 
+// ユーザー名（前後の空白を除いて1〜50文字）。同意のときと、マイページで変えるときに使う
+const nameSchema = z
+  .string({ error: "ユーザー名を入力してください" })
+  .trim()
+  .min(1, "ユーザー名を入力してください")
+  .max(50, "ユーザー名は50文字までにしてください");
+
 // 利用規約に同意するときに受け取る値
 const consentSchema = z.object({
-  name: z
-    .string({ error: "ユーザー名を入力してください" })
-    .trim()
-    .min(1, "ユーザー名を入力してください")
-    .max(50, "ユーザー名は50文字までにしてください"),
+  name: nameSchema,
   agreeToTerms: z.literal(true, { error: "利用規約に同意してください" }),
 });
+
+// マイページで変えられる値（今はユーザー名だけ）
+const updateMeSchema = z.object({ name: nameSchema });
 
 // /api/me（自分の情報）。どれもログインが必要
 const me = new Hono()
   .use(requireAuth)
   // 自分の情報を返す。termsAcceptedAt が null なら、画面は確認画面へ進ませる
   .get("/", (c) => c.json(toMe(c.var.user)))
+  // ユーザー名を変える（マイページ）。利用規約に同意したユーザーだけ
+  .patch("/", requireConsent, zValidator("json", updateMeSchema), async (c) => {
+    const { name } = c.req.valid("json");
+    const [updated] = await db
+      .update(users)
+      .set({ name })
+      .where(eq(users.id, c.var.user.id))
+      .returning();
+    // セッションを確かめたあとに、ほかの端末で退会していた
+    if (!updated) {
+      return c.json(
+        { error: { code: "unauthorized", message: "ログインしてください" } },
+        401,
+      );
+    }
+    return c.json(toMe(updated), 200);
+  })
   // 利用規約に同意して、ユーザー名を保存する。同意した日時はサーバーが決める
   .post("/consent", zValidator("json", consentSchema), async (c) => {
     const { name } = c.req.valid("json");

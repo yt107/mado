@@ -15,7 +15,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Mado",
+  // ページごとのタイトルは「マイページ - Mado」の形にする。決めていないページは「Mado」
+  title: { default: "Mado", template: "%s - Mado" },
   description:
     "好きなウィジェットを並べて、タブレットやサブディスプレイを情報ディスプレイにするWebアプリ",
 };

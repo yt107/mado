@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
@@ -7,6 +8,10 @@ import { StepIndicator } from "@/components/step-indicator";
 import { verifySession } from "@/lib/session";
 
 import { ConsentForm } from "./consent-form";
+
+export const metadata: Metadata = {
+  title: "はじめる前の確認",
+};
 
 // 初回ログインの確認画面。ユーザー名を決めて、利用規約に同意してもらう
 export default function WelcomePage() {

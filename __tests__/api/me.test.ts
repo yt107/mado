@@ -4,7 +4,9 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import app from "@/server/app";
 import { db } from "@/server/db";
-import { sessions, users } from "@/server/db/schema";
+import { boards, sessions, users, widgets } from "@/server/db/schema";
+import { SESSION_EXPIRES_IN_SECONDS } from "@/server/auth";
+import { countMyData } from "@/server/services/boards";
 
 import { loginAs } from "../helpers/test-auth";
 
@@ -220,5 +222,144 @@ describe("DELETE /api/me", () => {
 
     expect(res.status).toBe(403);
     expect(await findUser()).toBeDefined();
+  });
+});
+
+function patchMe(body: unknown, headers?: Headers) {
+  const h = new Headers(headers);
+  h.set("Content-Type", "application/json");
+  return app.request("/api/me", {
+    method: "PATCH",
+    headers: h,
+    body: JSON.stringify(body),
+  });
+}
+
+describe("PATCH /api/me", () => {
+  test("ユーザー名を、前後の空白を除いて保存する", async () => {
+    await acceptTerms();
+    const res = await patchMe({ name: "  Taro  " }, await loginAs(userId));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ id: userId, name: "Taro" });
+    expect((await findUser())?.name).toBe("Taro");
+  });
+
+  test("空のユーザー名は 400", async () => {
+    await acceptTerms();
+    const res = await patchMe({ name: "   " }, await loginAs(userId));
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: {
+        code: "validation_error",
+        message: "ユーザー名を入力してください",
+      },
+    });
+    expect((await findUser())?.name).toBe("Taro Google");
+  });
+
+  test("51文字のユーザー名は 400", async () => {
+    await acceptTerms();
+    const res = await patchMe({ name: "あ".repeat(51) }, await loginAs(userId));
+    expect(res.status).toBe(400);
+  });
+
+  test("利用規約に同意していなければ 403", async () => {
+    const res = await patchMe({ name: "Taro" }, await loginAs(userId));
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({
+      error: { code: "terms_not_accepted" },
+    });
+    expect((await findUser())?.name).toBe("Taro Google");
+  });
+
+  test("ログインしていなければ 401", async () => {
+    const res = await patchMe({ name: "Taro" });
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("ログインの期限の延長", () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  // 前に延ばしてから2日たったセッションにする（1日たてば延ばす対象になる）
+  async function ageSession() {
+    const twoDaysAgo = new Date(
+      Date.now() + SESSION_EXPIRES_IN_SECONDS * 1000 - 2 * DAY_MS,
+    );
+    await db
+      .update(sessions)
+      .set({ expiresAt: twoDaysAgo })
+      .where(eq(sessions.userId, userId));
+    return twoDaysAgo;
+  }
+
+  async function sessionExpiresAt() {
+    const session = await db.query.sessions.findFirst({
+      where: eq(sessions.userId, userId),
+    });
+    return session!.expiresAt;
+  }
+
+  test("ログインの期限は30日", () => {
+    expect(SESSION_EXPIRES_IN_SECONDS).toBe(30 * 24 * 60 * 60);
+  });
+
+  test("Mado の API を呼んでも、期限は延ばさない（Cookie を送り直さないため）", async () => {
+    const headers = await loginAs(userId);
+    const before = await ageSession();
+
+    const res = await app.request("/api/me", { headers });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Set-Cookie")).toBeNull();
+    expect((await sessionExpiresAt()).getTime()).toBe(before.getTime());
+  });
+
+  test("/api/auth/get-session を呼ぶと、DB と Cookie の期限を一緒に30日先まで延ばす", async () => {
+    const headers = await loginAs(userId);
+    await ageSession();
+
+    const res = await app.request("/api/auth/get-session", { headers });
+
+    expect(res.status).toBe(200);
+    const expiresAt = await sessionExpiresAt();
+    expect(expiresAt.getTime()).toBeGreaterThan(
+      Date.now() + SESSION_EXPIRES_IN_SECONDS * 1000 - 60 * 1000,
+    );
+    // Cookie の期限も30日になる
+    expect(res.headers.get("Set-Cookie")).toContain(
+      `Max-Age=${SESSION_EXPIRES_IN_SECONDS}`,
+    );
+  });
+});
+
+describe("countMyData（退会の確認で見せる数）", () => {
+  test("ボードがなければ0件", async () => {
+    expect(await countMyData(userId)).toEqual({ boards: 0, widgets: 0 });
+  });
+
+  test("自分のボードとウィジェットの数を数える", async () => {
+    const [board] = await db
+      .insert(boards)
+      .values({ userId, name: "マイボード" })
+      .returning();
+    await db.insert(widgets).values([
+      { boardId: board!.id, type: "clock" },
+      { boardId: board!.id, type: "memo" },
+    ]);
+    // ほかの人のボードは数えない
+    await db
+      .insert(users)
+      .values({ id: "user_2", name: "Hanako", email: "hanako@example.com" });
+    const [other] = await db
+      .insert(boards)
+      .values({ userId: "user_2", name: "マイボード" })
+      .returning();
+    await db.insert(widgets).values({ boardId: other!.id, type: "clock" });
+
+    expect(await countMyData(userId)).toEqual({ boards: 1, widgets: 2 });
   });
 });

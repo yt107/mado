@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
@@ -5,6 +6,10 @@ import { hasBoard } from "@/lib/board/data";
 import { verifyConsentedUser } from "@/lib/session";
 
 import { TemplatePicker } from "./template-picker";
+
+export const metadata: Metadata = {
+  title: "テンプレートを選ぶ",
+};
 
 // 初回の設定（テンプレートの選択）
 export default function SetupPage() {

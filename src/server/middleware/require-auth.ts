@@ -9,7 +9,12 @@ type Session = typeof auth.$Infer.Session;
 export const requireAuth = createMiddleware<{
   Variables: { user: Session["user"]; session: Session["session"] };
 }>(async (c, next) => {
-  const result = await auth.api.getSession({ headers: c.req.raw.headers });
+  const result = await auth.api.getSession({
+    headers: c.req.raw.headers,
+    // ここでは、ログインの期限を延ばさない（延ばすのは /api/auth/get-session だけ。
+    // 理由は src/lib/session.ts と同じ）
+    query: { disableRefresh: true },
+  });
   if (!result) {
     return c.json(
       { error: { code: "unauthorized", message: "ログインしてください" } },
