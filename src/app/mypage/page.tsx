@@ -57,7 +57,8 @@ async function Account() {
       </header>
 
       <main className="mx-auto w-full max-w-7xl px-6 py-12 sm:px-10">
-        <div className="max-w-130">
+        {/* 広い画面でも、中身を中央にまとめる */}
+        <div className="mx-auto max-w-130">
           <h1 className="text-3xl font-bold">マイページ</h1>
           <p className="mt-2 text-sm text-ink-2">アカウントを管理します。</p>
 

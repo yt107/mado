@@ -19,7 +19,8 @@ export default function LoginPage() {
       heroDescription={
         <>
           好きなウィジェットを並べて、タブレットやサブディスプレイを
-          <br />
+          {/* 狭い画面では、決めた位置で改行せず、文節で自然に折り返す */}
+          <br className="hidden xl:inline" />
           あなた専用の情報ディスプレイに。
         </>
       }

@@ -72,6 +72,13 @@
 }
 
 @layer base {
+  /* 日本語を、単語や文節の途中で改行しない（「ウィジェ／ット」のような切れ方を防ぐ）。
+     html の lang="ja" を手がかりに、ブラウザが文節を判断する。
+     Chrome と Edge で効き、対応していないブラウザでは今までどおりの改行になる */
+  html {
+    word-break: auto-phrase;
+  }
+
   :focus-visible {
     outline: 2px solid var(--c-accent);
     outline-offset: 2px;

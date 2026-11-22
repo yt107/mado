@@ -70,7 +70,7 @@ export function NewsSettingsPanel({
 }: Props) {
   const s = readNewsSettings(settings);
   const id = useId();
-  const sorted = [...feeds].sort((a, b) => a.sortOrder - b.sortOrder);
+  const sorted = feeds.toSorted((a, b) => a.sortOrder - b.sortOrder);
   const { listRef, ordered, draggingId, handleProps } = useDragSort(
     sorted,
     (feed, toIndex) => {

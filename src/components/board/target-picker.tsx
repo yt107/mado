@@ -39,7 +39,7 @@ export function TargetPicker({ name, value, onChange, className }: Props) {
         {OPTIONS.map(({ target, label, Icon }) => (
           <label
             key={target}
-            className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-ink-2 has-checked:bg-raised has-checked:font-bold has-checked:text-ink has-focus-visible:outline-2 has-focus-visible:outline-accent hover:text-ink"
+            className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs whitespace-nowrap xl:px-3 text-ink-2 has-checked:bg-raised has-checked:font-bold has-checked:text-ink has-focus-visible:outline-2 has-focus-visible:outline-accent hover:text-ink"
           >
             <input
               type="radio"
