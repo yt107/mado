@@ -13,10 +13,14 @@
 
 ```bash
 npm install
+cp .env.example .env.local   # 値を入れる（中の説明を参照）
+npm run db:migrate           # 開発用の DB にテーブルを作る
 npm run dev
 ```
 
 http://localhost:3000 で開けます。
+
+本番（Cloud Run）の環境変数と秘密の値は、`.github/workflows/ci.yml` の `deploy` に書いています。秘密の値そのものは Secret Manager にあります。
 
 ## コマンド
 

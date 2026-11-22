@@ -57,6 +57,9 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    env:
+      # 本番の URL。Google ログインの戻り先（OAuth クライアント「Mado（本番）」）と同じにする
+      APP_URL: https://mado-268372143735.asia-northeast1.run.app
     steps:
       - name: コードを取得する
         uses: actions/checkout@v7
@@ -78,8 +81,22 @@ jobs:
           region: asia-northeast1
           source: .
           flags: --service-account=mado-run@mado-514617.iam.gserviceaccount.com --max-instances=2
+          # 本番の設定は、ここに書いたものだけにする（Cloud Run の画面で足した設定は、次のデプロイで消える）
+          env_vars_update_strategy: overwrite
+          secrets_update_strategy: overwrite
+          # 秘密ではない値
+          env_vars: |-
+            BETTER_AUTH_URL=${{ env.APP_URL }}
+            GOOGLE_CLIENT_ID=268372143735-hgekrqtug21ndon0g8s7n7dvml2vvut5.apps.googleusercontent.com
+          # 秘密の値は Secret Manager から渡す（読めるのは mado-run だけ）。
+          # 起動のときに読まれるので、Google のおすすめどおりバージョンを固定する。
+          # 値を変えるときは、Secret Manager に新しいバージョンを足してから、ここの番号を上げる
+          secrets: |-
+            DATABASE_URL=DATABASE_URL:1
+            BETTER_AUTH_SECRET=BETTER_AUTH_SECRET:1
+            GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:1
+            ENCRYPTION_KEY=ENCRYPTION_KEY:1
+            CRON_SECRET=CRON_SECRET:1
 
       - name: 公開された API を確かめる
-        env:
-          SERVICE_URL: ${{ steps.deploy.outputs.url }}
-        run: curl --fail --silent --show-error "$SERVICE_URL/api/health"
+        run: curl --fail --silent --show-error "$APP_URL/api/health"
