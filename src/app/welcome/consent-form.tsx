@@ -131,7 +131,25 @@ export function ConsentForm({ defaultName }: Props) {
             className="size-4.5 shrink-0"
           />
           <label htmlFor="agreeToTerms" className="text-sm text-ink-2">
-            利用規約とプライバシーポリシーに同意します（必須）
+            {/* 入力を消さないように、規約は新しいタブで開く */}
+            <a
+              href="/terms"
+              target="_blank"
+              rel="noopener"
+              className="text-ink underline underline-offset-4"
+            >
+              利用規約
+            </a>
+            と
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noopener"
+              className="text-ink underline underline-offset-4"
+            >
+              プライバシーポリシー
+            </a>
+            に同意します（必須）
           </label>
         </div>
 

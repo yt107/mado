@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
@@ -5,6 +6,10 @@ import { getMyBoard } from "@/lib/board/data";
 import { verifyConsentedUser } from "@/lib/session";
 
 import { Editor } from "./editor";
+
+export const metadata: Metadata = {
+  title: "編集モード",
+};
 
 // 編集モード（ウィジェットを置く・動かす・外す、設定を変える）
 export default function EditPage() {

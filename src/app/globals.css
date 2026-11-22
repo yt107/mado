@@ -76,6 +76,16 @@
     outline: 2px solid var(--c-accent);
     outline-offset: 2px;
   }
+
+  /* ダイアログを開いているあいだ、裏の画面がスクロールしないようにする。
+     ダイアログの中と、まわりの暗い部分（::backdrop）のスクロールを、そこで止める */
+  dialog:modal {
+    overscroll-behavior: contain;
+  }
+  dialog::backdrop {
+    overflow: hidden;
+    overscroll-behavior: contain;
+  }
 }
 
 /*

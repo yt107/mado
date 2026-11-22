@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, count, countDistinct, eq } from "drizzle-orm";
 
 import type { DisplayTarget } from "@/lib/board/display-targets";
 import {
@@ -130,4 +130,17 @@ export async function createBoardFromTemplate(
     return null;
   }
   return getBoardDetail(userId, boardId);
+}
+
+// 退会の確認で見せる、消えるデータの数（ボードの数と、ウィジェットの数）
+export async function countMyData(userId: string) {
+  const [row] = await db
+    .select({
+      boards: countDistinct(boards.id),
+      widgets: count(widgets.id),
+    })
+    .from(boards)
+    .leftJoin(widgets, eq(widgets.boardId, boards.id))
+    .where(eq(boards.userId, userId));
+  return { boards: row?.boards ?? 0, widgets: row?.widgets ?? 0 };
 }

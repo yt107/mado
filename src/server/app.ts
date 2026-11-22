@@ -4,6 +4,7 @@ import { csrf } from "hono/csrf";
 import { auth } from "./auth";
 import boards from "./routes/boards";
 import calendarSubscriptions from "./routes/calendar-subscriptions";
+import maintenance from "./routes/maintenance";
 import me from "./routes/me";
 import newsFeeds from "./routes/news-feeds";
 import todoItems from "./routes/todo-items";
@@ -13,6 +14,8 @@ const app = new Hono()
   .basePath("/api")
   // ログインの処理は Better Auth に任せる（/api/auth/*）。送り元の確認も Better Auth がする
   .on(["GET", "POST"], "/auth/*", (c) => auth.handler(c.req.raw))
+  // 定期実行から呼ぶ API。Cookie ではなく合言葉で確かめるので、送り元の確認（CSRF 対策）は要らない
+  .route("/maintenance", maintenance)
   // ここから下の API は、データを変えるリクエストの送り元を確かめる（CSRF 対策）。
   // Hono は登録した順に動くので、上の /api/auth/* には効かない
   .use(csrf())

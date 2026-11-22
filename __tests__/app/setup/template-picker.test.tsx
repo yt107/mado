@@ -51,7 +51,7 @@ describe("TemplatePicker", () => {
       value: {
         getCurrentPosition: (success: PositionCallback) =>
           success({
-            coords: { latitude: 35.68, longitude: 139.76 },
+            coords: { latitude: 35.681236, longitude: 139.767125 },
           } as GeolocationPosition),
       },
     });
@@ -75,7 +75,7 @@ describe("TemplatePicker", () => {
           name: "現在地",
           region: "",
           latitude: 35.68,
-          longitude: 139.76,
+          longitude: 139.77,
         },
       },
     });

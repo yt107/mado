@@ -16,7 +16,8 @@ Mado の API の一覧と、API 全体の決めごと。OpenAPI は今は書か�
 ## ログイン状態と権限
 
 - ログイン状態は、Better Auth のセッション（Cookie）で持つ
-- ログインが必要ないのは、`/api/health` と `/api/auth/*` だけ
+- ログインが必要ないのは、`/api/health` と `/api/auth/*` だけ。`/api/maintenance/*` は、ログインの代わりに合言葉（`CRON_SECRET`）で確かめる
+- ログインの期限（30日）を延ばすのは、`GET /api/auth/get-session` を呼んだときだけ。ほかの API と画面（Server Components）では延ばさない（Cookie を送り直せない場所で延ばすと、DB の期限だけが延びて Cookie が先に切れるため）
 - 利用規約にまだ同意していないユーザーが使えるのは、`GET /api/me`、`POST /api/me/consent`、`DELETE /api/me` だけ
 - 他人のデータを指定されたら 404 を返す。403 を返すと、そのデータがあることが分かってしまうため
 - データを変える API（POST、PUT、PATCH、DELETE）は、Hono の CSRF ミドルウェアで、リクエストの送り元（Origin）を確かめる
@@ -103,6 +104,12 @@ Mado の API の一覧と、API 全体の決めごと。OpenAPI は今は書か�
 | メソッド | パス | 用途 | 区切り |
 |---|---|---|---|
 | GET | `/api/health` | サーバーが動いているか | 1（済み） |
+
+### 定期実行（Cloud Scheduler から呼ぶ）
+
+| メソッド | パス | 用途 | 区切り |
+|---|---|---|---|
+| POST | `/api/maintenance/cleanup` | 要らなくなったデータを消す。毎日呼ぶので、Supabase の休止も防ぐ | 5 |
 
 ## 区切り2の API の詳細
 
@@ -500,3 +507,43 @@ iCal の URL を登録する。一度読んでみて、iCal として読めた�
 | `autoRotate` | 見出しを10秒ごとに送る（1×1） | `true` |
 | `dedupe` | 同じ記事（同じリンクか見出し）をまとめる | `true` |
 | `refreshMinutes` | `15`、`30`、`60` | `15` |
+
+## 区切り5の API の詳細（マイページ・退会・掃除）
+
+### `PATCH /api/me`
+
+ユーザー名を変える（マイページ）。利用規約に同意していなければ 403（`terms_not_accepted`）。
+
+リクエスト：
+
+```json
+{ "name": "Taro" }
+```
+
+- `name`：前後の空白を除いて1〜50文字（`POST /api/me/consent` と同じ）
+
+200：`GET /api/me` と同じ形
+
+### `DELETE /api/me`（退会）
+
+区切り2の決まりのまま。画面での流れは次のとおり。
+
+1. マイページの確認ダイアログで同意すると、手続きの途中であることを端末（sessionStorage）に覚え、Google の再ログインに移る（`prompt=select_account`、今のメールアドレスを `login_hint` に入れる）
+2. 戻ってきたら `/mypage/withdraw` で、覚えておいたユーザーと、再ログインしたユーザーが同じかを確かめる。違えば削除しない（別のアカウントを消さないため）
+3. 同じなら `DELETE /api/me` を呼び、「退会しました」（`/goodbye`）へ移る
+
+### `POST /api/maintenance/cleanup`
+
+`Authorization: Bearer <CRON_SECRET>` で呼ぶ。`CRON_SECRET` がない環境では 404、合言葉が違えば 401。
+
+次のものを削除して、件数を返す。
+
+- 登録から24時間たっても、利用規約に同意していないユーザー（`accounts`・`sessions` も一緒に消える）
+- 期限が切れた `sessions`
+- 期限が切れた `verifications`（Google ログインの途中の一時的な値）
+
+200：
+
+```json
+{ "deleted": { "users": 1, "sessions": 3, "verifications": 2 } }
+```

@@ -94,11 +94,12 @@ export function LocationSearch({ value, onChange, label }: Props) {
       (position) => {
         setStatus("idle");
         onChange({
-          // Open-Meteo には座標から地名を調べる機能がないので、「現在地」と出す
+          // Open-Meteo には座標から地名を調べる機能がないので、「現在地」と出す。
+          // 天気の取得で使う小数第2位（約1km）に丸め、細かい現在地を DB に保存しない
           name: "現在地",
           region: "",
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
+          latitude: Number(position.coords.latitude.toFixed(2)),
+          longitude: Number(position.coords.longitude.toFixed(2)),
         });
         setEditing(false);
         setQuery("");
