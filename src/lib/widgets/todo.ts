@@ -38,7 +38,7 @@ export function visibleTodoItems(
   items: TodoItem[],
   settings: TodoSettings,
 ): TodoItem[] {
-  const sorted = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
+  const sorted = items.toSorted((a, b) => a.sortOrder - b.sortOrder);
   const shown = settings.showCompleted
     ? sorted
     : sorted.filter((item) => !item.isDone);

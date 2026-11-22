@@ -167,7 +167,7 @@ function LocalDate({ iso }: { iso: string }) {
     return null;
   }
   return (
-    <time dateTime={iso}>
+    <time dateTime={iso} className="whitespace-nowrap">
       {new Intl.DateTimeFormat("ja-JP", { dateStyle: "long" }).format(
         new Date(iso),
       )}

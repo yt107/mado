@@ -45,7 +45,7 @@ export function TodoSettingsPanel({
   onClose,
 }: Props) {
   const s = readTodoSettings(settings);
-  const sorted = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
+  const sorted = items.toSorted((a, b) => a.sortOrder - b.sortOrder);
 
   // つまみをドラッグして並べ替える（↑↓ キーでも動かせる）
   const { listRef, ordered, draggingId, handleProps } = useDragSort(

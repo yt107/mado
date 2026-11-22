@@ -289,7 +289,7 @@ export function Editor({ board, user }: Props) {
 
   function moveTodo(widgetId: string, itemId: string, toIndex: number) {
     setTodoItems(widgetId, (items) => {
-      const sorted = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
+      const sorted = items.toSorted((a, b) => a.sortOrder - b.sortOrder);
       const moving = sorted.find((item) => item.id === itemId);
       if (!moving) return items;
       const rest = sorted.filter((item) => item.id !== itemId);
@@ -439,7 +439,7 @@ export function Editor({ board, user }: Props) {
 
   function moveFeed(widgetId: string, feedId: string, toIndex: number) {
     updateWidget(widgetId, (w) => {
-      const sorted = [...(w.newsFeeds ?? [])].sort(
+      const sorted = (w.newsFeeds ?? []).toSorted(
         (a, b) => a.sortOrder - b.sortOrder,
       );
       const moving = sorted.find((f) => f.id === feedId);

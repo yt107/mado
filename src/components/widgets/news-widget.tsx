@@ -140,8 +140,8 @@ type ViewProps = {
 export function NewsView({ settings, data, now, size, state }: ViewProps) {
   // フィードの色は、並び順の何番目かで決める（設定パネルの印と同じ色）
   const feeds = new Map(
-    [...data.feeds]
-      .sort((a, b) => a.sortOrder - b.sortOrder)
+    data.feeds
+      .toSorted((a, b) => a.sortOrder - b.sortOrder)
       .map((feed, index) => [feed.id, { ...feed, color: feedColor(index) }]),
   );
   const all = settings.dedupe ? dedupeItems(data.items) : data.items;
