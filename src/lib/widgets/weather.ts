@@ -23,8 +23,19 @@ export const weatherLocationSchema = z.object({
 
 export type WeatherLocation = z.infer<typeof weatherLocationSchema>;
 
+// 地域の初期値。最初から天気が出るように、東京にしておく
+// （値は、地域の検索で「東京」を選んだときと同じ）
+export const DEFAULT_WEATHER_LOCATION: WeatherLocation = {
+  name: "東京都",
+  region: "",
+  latitude: 35.6895,
+  longitude: 139.69171,
+};
+
 export const weatherSettingsSchema = z.object({
-  location: weatherLocationSchema.nullable().default(null),
+  location: weatherLocationSchema
+    .nullable()
+    .default(() => ({ ...DEFAULT_WEATHER_LOCATION })),
   // 表示する情報
   showHourly: z.boolean().default(true),
   showDaily: z.boolean().default(true),

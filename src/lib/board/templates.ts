@@ -15,6 +15,9 @@ export const TEMPLATE_IDS = [
 
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 
+// おすすめのテンプレート。初回の設定で、最初から選んでおき、「おすすめ」と出す
+export const RECOMMENDED_TEMPLATE_ID: TemplateId = "basic";
+
 export type Placement = {
   page: number;
   x: number;

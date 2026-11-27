@@ -81,7 +81,39 @@ describe("TemplatePicker", () => {
     });
   });
 
-  test("地域でスキップすると、地域なしで作る", async () => {
+  test("ベーシックだけに「おすすめ」が付いている", () => {
+    render(<TemplatePicker />);
+    expect(
+      screen.getByRole("radio", { name: /ベーシック.*おすすめ/ }),
+    ).toBeTruthy();
+    expect(screen.getAllByText("おすすめ")).toHaveLength(1);
+  });
+
+  test("地域は最初から東京で、変えなければ東京で作る", async () => {
+    mocks.postBoard.mockResolvedValue(response(201));
+    render(<TemplatePicker />);
+
+    fireEvent.click(screen.getByRole("button", { name: "次へ（天気の地域）" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "ダッシュボードを作成" }),
+    );
+
+    await vi.waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/"));
+    expect(mocks.postBoard).toHaveBeenCalledWith({
+      json: {
+        templateId: "basic",
+        location: {
+          name: "東京都",
+          region: "",
+          latitude: 35.6895,
+          longitude: 139.69171,
+        },
+      },
+    });
+  });
+
+  // 地域を送らなければ、サーバーが設定の初期値（東京）で作る
+  test("地域でスキップすると、地域を送らずに作る", async () => {
     mocks.postBoard.mockResolvedValue(response(201));
     render(<TemplatePicker />);
 

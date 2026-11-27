@@ -31,9 +31,14 @@ const local = (y: number, m: number, d: number, h = 0, min = 0) =>
   new Date(y, m - 1, d, h, min);
 
 describe("天気", () => {
-  test("設定の初期値", () => {
+  test("設定の初期値（地域は東京）", () => {
     expect(normalizeSettings("weather", {})).toEqual({
-      location: null,
+      location: {
+        name: "東京都",
+        region: "",
+        latitude: 35.6895,
+        longitude: 139.69171,
+      },
       showHourly: true,
       showDaily: true,
       showHighLow: true,
