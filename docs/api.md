@@ -182,7 +182,7 @@ Mado の API の一覧と、API 全体の決めごと。OpenAPI は今は書か�
 ```
 
 - `templateId`：`basic`（ベーシック）、`standby`（スタンバイ）、`family`（ファミリー）、`workdesk`（ワークデスク）、`blank`（白紙）のどれか
-- `location`：初回の設定で選んだ天気の地域（なくてもよい）。テンプレートに天気があれば、天気の設定の `location` に入れる
+- `location`：初回の設定で選んだ天気の地域（なくてもよい）。テンプレートに天気があれば、天気の設定の `location` に入れる。なければ、天気の設定の初期値（東京）になる
 - ボードの名前は「マイボード」で作る
 
 201：`GET /api/boards/:boardId` と同じ形
@@ -479,7 +479,7 @@ iCal の URL を登録する。一度読んでみて、iCal として読めた�
 
 | キー | 値 | 初期値 |
 |---|---|---|
-| `location` | `{ name, region, latitude, longitude }`（選んだ地域） | `null` |
+| `location` | `{ name, region, latitude, longitude }`（選んだ地域）、または `null` | 東京（`{ "name": "東京都", "region": "", "latitude": 35.6895, "longitude": 139.69171 }`） |
 | `showHourly` | 時間ごとの予報 | `true` |
 | `showDaily` | 週間予報（3日間） | `true` |
 | `showHighLow` | 最高・最低気温 | `true` |

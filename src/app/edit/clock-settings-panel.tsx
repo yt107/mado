@@ -6,6 +6,7 @@ import { useId, useState } from "react";
 import { cx } from "@/lib/cx";
 import {
   CITIES,
+  formatClockDate,
   gmtOffsetLabel,
   readClockSettings,
   type CityId,
@@ -21,10 +22,11 @@ type Props = {
 
 const CITY_IDS = Object.keys(CITIES) as CityId[];
 
-const DATE_FORMATS: { value: ClockSettings["dateFormat"]; label: string }[] = [
-  { value: "monthDayWeekday", label: "11月6日 金曜日" },
-  { value: "yearMonthDayWeekday", label: "2026年11月6日 金曜日" },
-  { value: "numeric", label: "2026/11/06(金)" },
+// 日付の形式。見本は、今日の日付で作る（基準のタイムゾーンの日付）
+const DATE_FORMATS: ClockSettings["dateFormat"][] = [
+  "monthDayWeekday",
+  "yearMonthDayWeekday",
+  "numeric",
 ];
 
 const TEXT_STYLES: {
@@ -117,6 +119,7 @@ export function ClockSettingsPanel({
           />
           <Switch
             label="日付を表示"
+            note="横2マス以上で表示"
             checked={s.showDate}
             onChange={(showDate) => update({ showDate })}
           />
@@ -140,9 +143,9 @@ export function ClockSettingsPanel({
             }
             className="h-10 w-full rounded-[10px] border border-line bg-card px-3 disabled:opacity-50"
           >
-            {DATE_FORMATS.map(({ value, label }) => (
+            {DATE_FORMATS.map((value) => (
               <option key={value} value={value}>
-                {label}
+                {formatClockDate(new Date(), CITIES[s.city].timeZone, value)}
               </option>
             ))}
           </select>
@@ -178,8 +181,13 @@ export function ClockSettingsPanel({
         </fieldset>
 
         <section aria-labelledby={`${id}-world`}>
-          <h3 id={`${id}-world`} className="mb-2 text-xs font-bold text-ink-2">
+          <h3
+            id={`${id}-world`}
+            className="mb-2 flex items-baseline gap-2 text-xs font-bold text-ink-2"
+          >
             世界時計
+            {/* 世界時計は、大きいとき（2×2 以上）だけ出す（clock-widget.tsx） */}
+            <span className="font-normal text-ink-3">2×2 以上で表示</span>
           </h3>
           <ul className="flex flex-col gap-1.5">
             {s.worldClocks.map((city) => (
@@ -294,19 +302,25 @@ export function ClockSettingsPanel({
   );
 }
 
-// オンとオフの切り替え（チェックボックスを、スイッチとして読み上げる）
+// オンとオフの切り替え（チェックボックスを、スイッチとして読み上げる）。
+// note は、名前の横に小さく出す補足（表示される条件など）
 function Switch({
   label,
+  note,
   checked,
   onChange,
 }: {
   label: string;
+  note?: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between">
-      {label}
+    <label className="flex cursor-pointer items-center justify-between gap-3">
+      <span className="flex items-baseline gap-2">
+        {label}
+        {note && <span className="text-xs text-ink-3">{note}</span>}
+      </span>
       <input
         type="checkbox"
         role="switch"

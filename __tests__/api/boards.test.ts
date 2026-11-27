@@ -117,6 +117,14 @@ describe("POST /api/boards", () => {
     });
     expect(clock.placements).toHaveLength(6);
 
+    // 地域を選ばなかったときの天気は、東京で始まる
+    const weather = body.widgets[1];
+    expect(weather.settings.location).toMatchObject({
+      name: "東京都",
+      latitude: 35.6895,
+      longitude: 139.69171,
+    });
+
     // DB にも入っている
     expect(await db.select().from(widgets)).toHaveLength(6);
     // メモと ToDo はスマホ横に置かないので、6種類×6表示先より2つ少ない

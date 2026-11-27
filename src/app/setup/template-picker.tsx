@@ -14,12 +14,16 @@ import { api } from "@/lib/api-client";
 import type { DisplayTarget } from "@/lib/board/display-targets";
 import { templateWidgets } from "@/lib/board/sample";
 import {
+  RECOMMENDED_TEMPLATE_ID,
   TEMPLATE_IDS,
   TEMPLATES,
   type TemplateId,
 } from "@/lib/board/templates";
 import { WIDGET_LABELS } from "@/lib/widgets/types";
-import type { WeatherLocation } from "@/lib/widgets/weather";
+import {
+  DEFAULT_WEATHER_LOCATION,
+  type WeatherLocation,
+} from "@/lib/widgets/weather";
 
 import { TemplateThumbnail } from "./template-thumbnail";
 
@@ -30,10 +34,15 @@ const UNEXPECTED_ERROR =
 // 選んだテンプレートでボードを作り、表示モードへ移る
 export function TemplatePicker() {
   const router = useRouter();
-  const [templateId, setTemplateId] = useState<TemplateId>("basic");
+  const [templateId, setTemplateId] = useState<TemplateId>(
+    RECOMMENDED_TEMPLATE_ID,
+  );
   const [target, setTarget] = useState<DisplayTarget>("pc");
   const [step, setStep] = useState<"template" | "region">("template");
-  const [location, setLocation] = useState<WeatherLocation | null>(null);
+  // 地域は、最初から東京を選んでおく（変えなければ東京で作る）
+  const [location, setLocation] = useState<WeatherLocation | null>(
+    DEFAULT_WEATHER_LOCATION,
+  );
   const [error, setError] = useState<string | null>(null);
   // 送っているあいだは、ボタンを押せないようにする（2回送らないため）
   const [isPending, startTransition] = useTransition();
@@ -94,7 +103,8 @@ export function TemplatePicker() {
           variant="plain"
           className="hidden lg:flex"
         />
-        {/* テンプレートの選択でスキップしたら、白紙のボードで始める。地域でスキップしたら、地域なしで作る */}
+        {/* テンプレートの選択でスキップしたら、白紙のボードで始める。
+            地域でスキップしたら、地域の初期値（東京）で作る */}
         <button
           type="button"
           onClick={() =>
@@ -161,7 +171,14 @@ export function TemplatePicker() {
                       />
                       <TemplateThumbnail template={t} />
                       <span className="min-w-0">
-                        <span className="block font-bold">{t.name}</span>
+                        <span className="flex items-center gap-2">
+                          <span className="font-bold">{t.name}</span>
+                          {id === RECOMMENDED_TEMPLATE_ID && (
+                            <span className="rounded-md border border-accent/60 px-1.5 py-0.5 text-[0.6875rem] whitespace-nowrap text-accent-ink">
+                              おすすめ
+                            </span>
+                          )}
+                        </span>
                         <span className="mt-1 block text-xs leading-relaxed text-ink-2">
                           {t.description}
                         </span>

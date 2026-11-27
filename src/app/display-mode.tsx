@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutGrid, Maximize, Minimize, Monitor, Pencil } from "lucide-react";
+import { Maximize, Minimize, Monitor, Pencil } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -205,11 +205,8 @@ export function DisplayMode({ board }: { board: BoardDetail }) {
 
         <span aria-hidden className="mx-1 h-5 w-px bg-line" />
 
-        <span className="flex min-w-0 items-center gap-1.5 px-2 text-ink-2 max-sm:hidden">
-          <LayoutGrid aria-hidden className="size-4 shrink-0" />
-          <span className="truncate">{board.name}</span>
-        </span>
-
+        {/* ボードの名前は出さない（ボタンの並びの中で、押せるものと見分けにくいため。
+            MVP ではボードが1つだけなので、名前で見分ける必要もない） */}
         <label className="flex min-h-9 min-w-0 items-center gap-1.5 rounded-lg px-2 text-ink-2 hover:bg-raised has-focus-visible:outline-2 has-focus-visible:outline-accent">
           <Monitor aria-hidden className="size-4 shrink-0" />
           <span className="max-sm:sr-only">表示先：</span>
