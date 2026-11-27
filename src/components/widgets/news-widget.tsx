@@ -12,6 +12,7 @@ import { useRemoteData, type RemoteData } from "@/lib/hooks/use-remote-data";
 import {
   dedupeItems,
   feedColor,
+  itemsOfFeeds,
   NEWS_ROTATE_MS,
   newsCount,
   publishedLabel,
@@ -90,8 +91,9 @@ function LiveNews({
   return (
     <NewsView
       settings={settings}
-      // フィードの名前と並び順は、ボードの値（編集ですぐ変わる）を使う
-      data={{ feeds, items: state.data?.items ?? [] }}
+      // フィードの名前と並び順は、ボードの値（編集ですぐ変わる）を使う。
+      // 記事も、ボードにあるフィードのものだけを出す（消したフィードの記事が残らないように）
+      data={{ feeds, items: itemsOfFeeds(state.data?.items ?? [], feeds) }}
       now={now}
       size={size}
       state={state}

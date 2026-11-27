@@ -88,6 +88,16 @@ export type CalendarEventsResponse = z.infer<
   typeof calendarEventsResponseSchema
 >;
 
+// 今ある購読先の予定だけを残す。購読先を消した直後の読み直しは、消す前の予定を返すことがある
+// （削除の保存より先にサーバーに届いたとき）ので、ボードの購読先で絞る
+export function eventsOfSubscriptions(
+  events: CalendarEvent[],
+  subscriptions: Pick<CalendarSubscription, "id">[],
+): CalendarEvent[] {
+  const ids = new Set(subscriptions.map((subscription) => subscription.id));
+  return events.filter((event) => ids.has(event.subscriptionId));
+}
+
 const urlInput = z
   .string({ error: "URL を入力してください" })
   .trim()
