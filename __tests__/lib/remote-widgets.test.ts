@@ -3,13 +3,19 @@ import { describe, expect, test } from "vitest";
 import {
   calendarEventsQuerySchema,
   calendarRange,
+  eventsOfSubscriptions,
   eventsOn,
   eventTimeLabel,
   monthGrid,
   weekdayLabels,
   type CalendarEvent,
 } from "@/lib/widgets/calendar";
-import { dedupeItems, newsCount, type NewsItem } from "@/lib/widgets/news";
+import {
+  dedupeItems,
+  itemsOfFeeds,
+  newsCount,
+  type NewsItem,
+} from "@/lib/widgets/news";
 import { normalizeSettings } from "@/lib/widgets/settings";
 import {
   forecastUrl,
@@ -239,6 +245,22 @@ describe("カレンダー", () => {
       }).success,
     ).toBe(false);
   });
+
+  test("消した購読先の予定は出さない", () => {
+    const event = (id: string, subscriptionId: string): CalendarEvent => ({
+      id,
+      subscriptionId,
+      title: id,
+      start: "2026-11-06",
+      end: "2026-11-07",
+      allDay: true,
+    });
+    const events = [event("a", "s1"), event("b", "s2"), event("c", "s1")];
+    expect(
+      eventsOfSubscriptions(events, [{ id: "s1" }]).map((e) => e.id),
+    ).toEqual(["a", "c"]);
+    expect(eventsOfSubscriptions(events, [])).toEqual([]);
+  });
 });
 
 describe("ニュース", () => {
@@ -260,6 +282,16 @@ describe("ニュース", () => {
       item("4", "見出し C", "https://example.com/c"),
     ];
     expect(dedupeItems(items).map((i) => i.id)).toEqual(["1", "4"]);
+  });
+
+  test("消したフィードの記事は出さない", () => {
+    const items = [
+      { ...item("1", "はてブの記事", "https://example.com/1"), feedId: "f1" },
+      { ...item("2", "Qiita の記事", "https://example.com/2"), feedId: "f2" },
+      { ...item("3", "はてブの記事2", "https://example.com/3"), feedId: "f1" },
+    ];
+    expect(itemsOfFeeds(items, [{ id: "f2" }]).map((i) => i.id)).toEqual(["2"]);
+    expect(itemsOfFeeds(items, [])).toEqual([]);
   });
 
   test("「サイズに合わせる」の件数", () => {

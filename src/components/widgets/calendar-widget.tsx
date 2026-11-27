@@ -12,6 +12,7 @@ import {
   CALENDAR_COLORS,
   calendarRange,
   dayLabel,
+  eventsOfSubscriptions,
   eventsOn,
   eventTimeLabel,
   monthGrid,
@@ -107,10 +108,11 @@ function LiveCalendar({
   return (
     <CalendarView
       settings={settings}
-      // 名前と色は、ボードの値（編集ですぐ変わる）を使う
+      // 名前と色は、ボードの値（編集ですぐ変わる）を使う。
+      // 予定も、ボードにある購読先のものだけを出す（消した購読先の予定が残らないように）
       data={{
         subscriptions,
-        events: state.data?.events ?? [],
+        events: eventsOfSubscriptions(state.data?.events ?? [], subscriptions),
       }}
       now={now}
       size={size}

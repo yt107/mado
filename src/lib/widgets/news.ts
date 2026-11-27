@@ -130,6 +130,16 @@ export function dedupeItems(items: NewsItem[]): NewsItem[] {
   });
 }
 
+// 今あるフィードの記事だけを残す。フィードを消した直後の読み直しは、消す前の記事を返すことがある
+// （削除の保存より先にサーバーに届いたとき）ので、ボードのフィードで絞る
+export function itemsOfFeeds(
+  items: NewsItem[],
+  feeds: Pick<NewsFeed, "id">[],
+): NewsItem[] {
+  const ids = new Set(feeds.map((feed) => feed.id));
+  return items.filter((item) => ids.has(item.feedId));
+}
+
 // 表示する件数。「大きさに合わせる」は、画面設計のサイズ別の表示に合わせる
 export function newsCount(
   count: NewsSettings["count"],
