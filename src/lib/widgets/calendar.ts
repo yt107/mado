@@ -79,9 +79,19 @@ export const calendarEventSchema = z.object({
 
 export type CalendarEvent = z.infer<typeof calendarEventSchema>;
 
+// Google カレンダーの購読先。表示モードで押したときに、Google カレンダーを開くために使う。
+// account は、開くときに選ぶ Google アカウント（分からなければ null）
+export const googleCalendarSchema = z.object({
+  subscriptionId: z.string(),
+  account: z.string().nullable(),
+});
+
+export type GoogleCalendar = z.infer<typeof googleCalendarSchema>;
+
 export const calendarEventsResponseSchema = z.object({
   subscriptions: z.array(calendarSubscriptionSchema),
   events: z.array(calendarEventSchema),
+  googleCalendars: z.array(googleCalendarSchema),
 });
 
 export type CalendarEventsResponse = z.infer<
@@ -96,6 +106,57 @@ export function eventsOfSubscriptions(
 ): CalendarEvent[] {
   const ids = new Set(subscriptions.map((subscription) => subscription.id));
   return events.filter((event) => ids.has(event.subscriptionId));
+}
+
+const GOOGLE_CALENDAR_APP_URL = "https://calendar.google.com/calendar/r";
+
+// iCal の URL が Google カレンダーのものなら、開くときに選ぶアカウントを返す。Google のものでなければ null。
+// URL の形は https://calendar.google.com/calendar/ical/<カレンダーの ID>/private-<鍵>/basic.ics。
+// メインのカレンダーの ID は、アカウントのメールアドレス。ほかのカレンダー（…@group.calendar.google.com）や
+// 祝日のカレンダーの ID からは、アカウントが分からない
+export function readGoogleCalendar(
+  icalUrl: string,
+): { account: string | null } | null {
+  let url: URL;
+  try {
+    url = new URL(icalUrl);
+  } catch {
+    return null;
+  }
+  const isGoogle =
+    url.protocol === "https:" &&
+    (url.hostname === "calendar.google.com" ||
+      url.hostname === "www.google.com");
+  const encodedId = /^\/calendar\/ical\/([^/]+)\//.exec(url.pathname)?.[1];
+  if (!isGoogle || !encodedId) return null;
+  let id: string;
+  try {
+    id = decodeURIComponent(encodedId);
+  } catch {
+    return { account: null };
+  }
+  const isAccount =
+    /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(id) &&
+    !id.toLowerCase().endsWith("calendar.google.com");
+  return { account: isAccount ? id : null };
+}
+
+// 表示モードで押したときに開く Google カレンダーの URL。ボードにある購読先に Google のものがなければ null。
+// アカウントが分かれば authuser で選ぶ（ブラウザで複数の Google アカウントにログインしていても、そのアカウントで開く）
+export function googleCalendarOpenUrl(
+  googleCalendars: GoogleCalendar[],
+  subscriptions: Pick<CalendarSubscription, "id">[],
+): string | null {
+  // 消した直後の購読先は使わない（予定と同じく、ボードの購読先で絞る）
+  const ids = new Set(subscriptions.map((subscription) => subscription.id));
+  const current = googleCalendars.filter((calendar) =>
+    ids.has(calendar.subscriptionId),
+  );
+  if (current.length === 0) return null;
+  const account = current.find((calendar) => calendar.account)?.account;
+  return account
+    ? `${GOOGLE_CALENDAR_APP_URL}?authuser=${encodeURIComponent(account)}`
+    : GOOGLE_CALENDAR_APP_URL;
 }
 
 const urlInput = z

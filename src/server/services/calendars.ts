@@ -6,10 +6,12 @@ import {
   CALENDAR_NAME_MAX,
   CALENDAR_SUBSCRIPTIONS_MAX,
   calendarSubscriptionSchema,
+  readGoogleCalendar,
   type CalendarColor,
   type CalendarEvent,
   type CalendarEventsResponse,
   type CalendarSubscription,
+  type GoogleCalendar,
   type updateCalendarSubscriptionSchema,
 } from "@/lib/widgets/calendar";
 
@@ -207,12 +209,20 @@ export async function getCalendarEvents(
   const rangeEnd = new Date(Date.parse(`${to}T00:00:00Z`) + 2 * DAY_MS);
 
   // 読めなかったカレンダーは、理由を残して、ほかのカレンダーの予定だけを返す
-  async function markFailed(row: SubscriptionRow, lastError: string) {
+  async function markFailed(
+    row: SubscriptionRow,
+    lastError: string,
+    google: GoogleCalendar | null = null,
+  ) {
     await db
       .update(calendarSubscriptions)
       .set({ lastError })
       .where(eq(calendarSubscriptions.id, row.id));
-    return { subscription: toSubscription({ ...row, lastError }), events: [] };
+    return {
+      subscription: toSubscription({ ...row, lastError }),
+      events: [],
+      google,
+    };
   }
 
   const results = await Promise.all(
@@ -224,6 +234,13 @@ export async function getCalendarEvents(
         // 鍵が変わったなどで読めないときは、登録し直してもらう
         return markFailed(row, "URL を読めません。登録し直してください");
       }
+      // Google カレンダーなら、開くときのアカウントも返す（URL そのものは返さない）。
+      // 予定を読めなくても、Google カレンダーは開ける
+      const googleCalendar = readGoogleCalendar(url);
+      const google = googleCalendar && {
+        subscriptionId: row.id,
+        account: googleCalendar.account,
+      };
       try {
         const res = await safeFetch(url, {
           maxBytes: ICAL_MAX_BYTES,
@@ -243,10 +260,14 @@ export async function getCalendarEvents(
           end: event.end,
           allDay: event.allDay,
         }));
-        return { subscription: toSubscription({ ...row, ...status }), events };
+        return {
+          subscription: toSubscription({ ...row, ...status }),
+          events,
+          google,
+        };
       } catch (error) {
         if (!isFetchFailure(error)) throw error;
-        return markFailed(row, error.message);
+        return markFailed(row, error.message, google);
       }
     }),
   );
@@ -254,5 +275,8 @@ export async function getCalendarEvents(
   return ok({
     subscriptions: results.map((result) => result.subscription),
     events: results.flatMap((result) => result.events),
+    googleCalendars: results.flatMap((result) =>
+      result.google ? [result.google] : [],
+    ),
   });
 }

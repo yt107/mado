@@ -3,7 +3,9 @@
 import {
   CalendarDays,
   Check,
+  ChevronRight,
   Ellipsis,
+  ExternalLink,
   Info,
   Link,
   LoaderCircle,
@@ -175,6 +177,7 @@ export function CalendarSettingsPanel({
           Google カレンダーの「iCal 形式の非公開 URL」も使えます。URL
           は暗号化して保存し、あとから画面には出しません。
         </p>
+        <GoogleCalendarGuide />
       </section>
 
       <section className="flex flex-col gap-3">
@@ -212,7 +215,69 @@ export function CalendarSettingsPanel({
           onSettingsChange({ ...s, refreshMinutes })
         }
       />
+
+      <p className="flex gap-1.5 text-xs leading-relaxed text-ink-3">
+        <Info aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+        表示モードでは、カレンダーを押すと Google
+        カレンダーを新しいタブで開きます（Google
+        カレンダーを登録しているときだけ）。
+      </p>
     </PanelShell>
+  );
+}
+
+// Google カレンダーの iCal の URL の取り方。ふだんは閉じておき、押すと開く。
+// 名前は Google のヘルプ（カレンダーをパソコン上のプログラムと同期する）に合わせる
+const GOOGLE_CALENDAR_HELP_URL =
+  "https://support.google.com/calendar/answer/37648?hl=ja";
+
+function GoogleCalendarGuide() {
+  return (
+    <details className="group mt-2 rounded-lg border border-line bg-card">
+      <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
+        <ChevronRight
+          aria-hidden
+          className="size-3.5 shrink-0 transition-transform group-open:rotate-90"
+        />
+        Google カレンダーの URL の取り方
+      </summary>
+      <div className="flex flex-col gap-2.5 border-t border-line px-3 py-2.5 text-xs leading-relaxed text-ink-2">
+        <ol className="flex list-decimal flex-col gap-1 pl-4">
+          <li>
+            パソコンで Google
+            カレンダーを開き、右上の設定アイコンから「設定」を開く
+          </li>
+          <li>左の「マイカレンダーの設定」で、カレンダーの名前を押す</li>
+          <li>
+            「カレンダーの統合」にある「iCal 形式の非公開 URL」をコピーする
+          </li>
+          <li>上の欄に貼り付けて「追加」を押す</li>
+        </ol>
+        <ul className="flex list-disc flex-col gap-1 pl-4 text-ink-3">
+          <li>
+            この URL
+            を知っている人は、予定を見られます。ほかの人には教えないでください
+          </li>
+          <li>
+            知られてしまったときは、同じ画面の「リセット」で URL
+            を作り直せます。そのあと、新しい URL を登録し直してください
+          </li>
+          <li>
+            仕事や学校のアカウントで見つからないときは、管理者が共有の設定を変えている可能性があります
+          </li>
+        </ul>
+        <a
+          href={GOOGLE_CALENDAR_HELP_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-0.5 self-start text-ink-2 underline underline-offset-2 hover:text-ink"
+        >
+          Google のヘルプ
+          <ExternalLink aria-hidden className="size-3" />
+          <span className="sr-only">（新しいタブで開く）</span>
+        </a>
+      </div>
+    </details>
   );
 }
 

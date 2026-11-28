@@ -6,7 +6,9 @@ import {
   eventsOfSubscriptions,
   eventsOn,
   eventTimeLabel,
+  googleCalendarOpenUrl,
   monthGrid,
+  readGoogleCalendar,
   weekdayLabels,
   type CalendarEvent,
 } from "@/lib/widgets/calendar";
@@ -266,6 +268,73 @@ describe("カレンダー", () => {
       eventsOfSubscriptions(events, [{ id: "s1" }]).map((e) => e.id),
     ).toEqual(["a", "c"]);
     expect(eventsOfSubscriptions(events, [])).toEqual([]);
+  });
+
+  test("Google カレンダーの iCal なら、開くときのアカウントを読む", () => {
+    const ical = (id: string, host = "calendar.google.com") =>
+      `https://${host}/calendar/ical/${id}/private-0123abcd/basic.ics`;
+    // メインのカレンダーの ID は、アカウントのメールアドレス
+    expect(readGoogleCalendar(ical("taro%40gmail.com"))).toEqual({
+      account: "taro@gmail.com",
+    });
+    expect(readGoogleCalendar(ical("hanako@example.co.jp"))).toEqual({
+      account: "hanako@example.co.jp",
+    });
+    // 古い形の URL
+    expect(
+      readGoogleCalendar(ical("taro%40gmail.com", "www.google.com")),
+    ).toEqual({ account: "taro@gmail.com" });
+    // ほかのカレンダーや祝日は、どのアカウントか分からない
+    expect(
+      readGoogleCalendar(ical("abc123%40group.calendar.google.com")),
+    ).toEqual({ account: null });
+    expect(
+      readGoogleCalendar(
+        ical("ja.japanese%23holiday%40group.v.calendar.google.com"),
+      ),
+    ).toEqual({ account: null });
+    // Google のものでなければ null
+    expect(
+      readGoogleCalendar("https://calendar.example.com/ical/me/basic.ics"),
+    ).toBeNull();
+    expect(
+      readGoogleCalendar(ical("taro%40gmail.com", "evil.example")),
+    ).toBeNull();
+    expect(
+      readGoogleCalendar(
+        "http://calendar.google.com/calendar/ical/a%40b.c/x/basic.ics",
+      ),
+    ).toBeNull();
+    expect(readGoogleCalendar("not a url")).toBeNull();
+  });
+
+  test("開く Google カレンダーの URL は、ボードにある購読先から決める", () => {
+    const subscriptions = [{ id: "s1" }, { id: "s2" }, { id: "s3" }];
+    // アカウントが分かる購読先があれば、そのアカウントで開く
+    expect(
+      googleCalendarOpenUrl(
+        [
+          { subscriptionId: "s1", account: null },
+          { subscriptionId: "s2", account: "taro@gmail.com" },
+        ],
+        subscriptions,
+      ),
+    ).toBe("https://calendar.google.com/calendar/r?authuser=taro%40gmail.com");
+    // 分からなければ、アカウントを選ばずに開く
+    expect(
+      googleCalendarOpenUrl(
+        [{ subscriptionId: "s1", account: null }],
+        subscriptions,
+      ),
+    ).toBe("https://calendar.google.com/calendar/r");
+    // Google のものがない、または消した購読先のものだけなら、開かない
+    expect(googleCalendarOpenUrl([], subscriptions)).toBeNull();
+    expect(
+      googleCalendarOpenUrl(
+        [{ subscriptionId: "deleted", account: "taro@gmail.com" }],
+        subscriptions,
+      ),
+    ).toBeNull();
   });
 });
 

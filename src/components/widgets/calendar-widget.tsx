@@ -15,6 +15,7 @@ import {
   eventsOfSubscriptions,
   eventsOn,
   eventTimeLabel,
+  googleCalendarOpenUrl,
   monthGrid,
   readCalendarSettings,
   tomorrowOf,
@@ -35,9 +36,12 @@ type Size = { w: number; h: number };
 export function CalendarWidget({
   widget,
   size,
+  openLink = false,
 }: {
   widget: BoardWidget;
   size: Size;
+  // 表示モード。Google カレンダーを登録していれば、押すと Google カレンダーを開く
+  openLink?: boolean;
 }) {
   const settings = readCalendarSettings(widget.settings);
   const now = useNow();
@@ -51,7 +55,13 @@ export function CalendarWidget({
       size={size}
     />
   ) : (
-    <LiveCalendar widget={widget} settings={settings} now={now} size={size} />
+    <LiveCalendar
+      widget={widget}
+      settings={settings}
+      now={now}
+      size={size}
+      openLink={openLink}
+    />
   );
 }
 
@@ -75,11 +85,13 @@ function LiveCalendar({
   settings,
   now,
   size,
+  openLink,
 }: {
   widget: BoardWidget;
   settings: CalendarSettings;
   now: Date;
   size: Size;
+  openLink: boolean;
 }) {
   const subscriptions = widget.calendarSubscriptions ?? [];
   const { from, to } = calendarRange(now, settings.weekStart);
@@ -117,17 +129,27 @@ function LiveCalendar({
       now={now}
       size={size}
       state={state}
+      openUrl={
+        openLink
+          ? googleCalendarOpenUrl(
+              state.data?.googleCalendars ?? [],
+              subscriptions,
+            )
+          : null
+      }
     />
   );
 }
 
 type ViewProps = {
   settings: CalendarSettings;
-  data: CalendarEventsResponse;
+  data: Pick<CalendarEventsResponse, "subscriptions" | "events">;
   now: Date;
   size: Size;
   state?: RemoteData<CalendarEventsResponse>;
   empty?: string;
+  // 押したときに開く URL（表示モードで、Google カレンダーを登録しているときだけ）
+  openUrl?: string | null;
 };
 
 export function CalendarView({
@@ -137,6 +159,7 @@ export function CalendarView({
   size,
   state,
   empty,
+  openUrl,
 }: ViewProps) {
   const today = localDateString(now);
   const tomorrow = tomorrowOf(today);
@@ -172,7 +195,7 @@ export function CalendarView({
   );
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       {(!showMonth || state?.error) && (
         <div className="mb-[0.8em] flex items-center justify-between gap-[0.5em]">
           {!showMonth ? (
@@ -210,6 +233,19 @@ export function CalendarView({
         )}
         {lists}
       </div>
+      {openUrl && (
+        // ウィジェットのどこを押しても開くよう、余白（28px × 拡大率）の分も広げて、カード全体を覆う
+        <a
+          href={openUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="absolute -inset-[calc(28px*var(--scale,1))] rounded-[calc(19px*var(--scale,1))] focus-visible:-outline-offset-2"
+        >
+          <span className="sr-only">
+            Google カレンダーを開く（新しいタブで開く）
+          </span>
+        </a>
+      )}
     </div>
   );
 }
