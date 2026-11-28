@@ -396,7 +396,8 @@ iCal の URL を登録する。一度読んでみて、iCal として読めた�
   "events": [
     { "id": "…", "subscriptionId": "…", "title": "チーム定例", "start": "2026-11-06T01:00:00.000Z", "end": "2026-11-06T02:00:00.000Z", "allDay": false },
     { "id": "…", "subscriptionId": "…", "title": "燃えるゴミの日", "start": "2026-11-07", "end": "2026-11-08", "allDay": true }
-  ]
+  ],
+  "googleCalendars": [{ "subscriptionId": "…", "account": "taro@gmail.com" }]
 }
 ```
 
@@ -405,6 +406,9 @@ iCal の URL を登録する。一度読んでみて、iCal として読めた�
 - 端末の時間帯がどこでも入るよう、期間の前後に1日ずつ広げて返す
 - 読めなかったカレンダーは `lastError` に理由を残し、ほかのカレンダーの予定だけを返す
 - 予定は DB に保存しない（docs/er.md の「DBに持たないもの」）
+- `googleCalendars` は、Google カレンダーの iCal（`https://calendar.google.com/calendar/ical/<カレンダーの ID>/…`）を登録した購読先。表示モードで、押すと Google カレンダーを新しいタブで開くために使う（`https://calendar.google.com/calendar/r?authuser=<account>`）。予定を読めなくても返す
+- `account` は、カレンダーの ID がメールアドレスのとき（メインのカレンダー）、その値。ほかのカレンダー（`…@group.calendar.google.com`）や祝日のカレンダーは `null`（アカウントを選ばずに開く）。iCal の URL そのもの（秘密の部分）は返さない
+- 画面は、ボードにある購読先のものだけを使う（消した直後の購読先は使わない。予定と同じ）
 
 ### `POST /api/widgets/:widgetId/news-feeds`
 

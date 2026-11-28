@@ -45,7 +45,7 @@ function toneOf(widget: BoardWidget) {
 type Props = {
   widget: BoardWidget;
   placement: Placement;
-  // 表示モード。ToDo のチェックと、ニュースの見出しのリンクだけが使える
+  // 表示モード。ToDo のチェックと、ニュースの見出し・Google カレンダーのリンクだけが使える
   interactive?: boolean;
 };
 
@@ -107,7 +107,9 @@ function WidgetContent({
     case "weather":
       return <WeatherWidget widget={widget} size={cells} />;
     case "calendar":
-      return <CalendarWidget widget={widget} size={cells} />;
+      return (
+        <CalendarWidget widget={widget} size={cells} openLink={interactive} />
+      );
     case "news":
       return (
         <NewsWidget widget={widget} size={cells} openLinks={interactive} />

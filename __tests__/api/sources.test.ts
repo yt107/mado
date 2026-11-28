@@ -327,6 +327,42 @@ describe("GET /api/widgets/:widgetId/calendar-events", () => {
     expect(widget.calendarSubscriptions[1].lastError).toBe(
       "時間内に応答がありません",
     );
+    // Google カレンダーではないので、開く先はない
+    expect(body.googleCalendars).toEqual([]);
+  });
+
+  test("Google カレンダーなら、開くときのアカウントを返す（予定を読めなくても）", async () => {
+    const mainUrl =
+      "https://calendar.google.com/calendar/ical/taro%40gmail.com/private-secret/basic.ics";
+    const groupUrl =
+      "https://calendar.google.com/calendar/ical/abc%40group.calendar.google.com/private-secret/basic.ics";
+    pages.set(mainUrl, { text: ics("Taro") });
+    pages.set(groupUrl, { text: ics("家族") });
+    const add = async (url: string) =>
+      (
+        await send(
+          "POST",
+          `/api/widgets/${byType.calendar!.id}/calendar-subscriptions`,
+          { url },
+        )
+      ).json();
+    const main = await add(mainUrl);
+    const group = await add(groupUrl);
+    // メインのカレンダーが読めなくなった
+    pages.set(
+      mainUrl,
+      new SafeFetchError("timeout", "時間内に応答がありません"),
+    );
+
+    const res = await send("GET", eventsPath("from=2026-11-01&to=2026-12-05"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.googleCalendars).toEqual([
+      { subscriptionId: main.id, account: "taro@gmail.com" },
+      { subscriptionId: group.id, account: null },
+    ]);
+    // iCal の URL そのものは返さない
+    expect(JSON.stringify(body)).not.toContain("private-secret");
   });
 
   test("期間が正しくなければ 400", async () => {

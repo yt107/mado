@@ -100,6 +100,8 @@ export function sampleCalendar(now: Date): CalendarEventsResponse {
       timed("8", "lesson", "オンライン英会話", 7, [19, 0], [19, 50]),
       timed("9", "work", "締め切り", 12, [17, 0], [18, 0]),
     ],
+    // 見本は押しても開かない
+    googleCalendars: [],
   };
 }
 
