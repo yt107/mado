@@ -204,6 +204,8 @@ export function EditBoard({
     started: boolean;
     latest: DragState | null;
   } | null>(null);
+  // 直前の操作がドラッグだったか。ドラッグのあとのクリックで、設定を開かないために使う
+  const draggedRef = useRef(false);
 
   function beginDrag(
     event: PointerEvent<HTMLElement>,
@@ -211,6 +213,7 @@ export function EditBoard({
     mode: "move" | "resize",
   ) {
     if (event.button !== 0) return;
+    draggedRef.current = false;
     const origin = placementOn(widget, target);
     if (!origin) return;
     const cell = hitTest(event.clientX, event.clientY);
@@ -275,6 +278,7 @@ export function EditBoard({
     const info = dragInfo.current;
     dragInfo.current = null;
     setDrag(null);
+    draggedRef.current = info?.started ?? false;
     if (!info?.started || !info.latest) return;
     if (!info.latest.valid) {
       onAnnounce("そこには置けないので、元の場所に戻しました");
@@ -282,6 +286,19 @@ export function EditBoard({
     }
     if (!samePlacement(info.latest.preview, info.origin)) {
       onCommit(info.widgetId, info.latest.preview);
+    }
+  }
+
+  // ドラッグせずにクリックしたら、そのウィジェットの設定を開く。
+  // ドラッグで動かしたあとのクリックは無視する（動かしただけで、設定が開かないように）
+  function onWidgetClick(widget: BoardWidget) {
+    if (draggedRef.current) {
+      draggedRef.current = false;
+      return;
+    }
+    onSelect(widget.id);
+    if (SETTINGS_SCHEMAS[widget.type]) {
+      onOpenSettings(widget.id);
     }
   }
 
@@ -342,7 +359,7 @@ export function EditBoard({
       ref={areaRef}
       className="relative min-h-0 flex-1"
       onPointerDown={(event) => {
-        // ウィジェットやツールバーの外を押したら、選ぶのをやめる
+        // ウィジェットやツールバーの外（ボードの空いているところなど）を押したら、選ぶのをやめる
         const element = event.target as Element;
         if (!element.closest("[data-widget], [data-toolbar]")) {
           onSelect(null);
@@ -426,6 +443,7 @@ export function EditBoard({
                         }}
                         onPointerMove={moveDrag}
                         onLostPointerCapture={endDrag}
+                        onClick={() => onWidgetClick(widget)}
                         onKeyDown={(event) => onWidgetKeyDown(event, widget)}
                       >
                         <WidgetBody

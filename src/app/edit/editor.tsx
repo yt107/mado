@@ -4,6 +4,7 @@ import {
   Grid2x2,
   Keyboard,
   Monitor,
+  MousePointerClick,
   Move,
   PanelLeftOpen,
   Scaling,
@@ -538,10 +539,15 @@ export function Editor({ board, user }: Props) {
     setSettingsId(null);
   }
 
-  // 設定パネルを開いたまま別のウィジェットを選んだら、そのウィジェットのパネルに切り替える
+  // 設定パネルを開いたまま別のウィジェットを選んだら、そのウィジェットのパネルに切り替える。
+  // 選ぶのをやめたら（ボードの空いているところを押す、Esc）、パネルを閉じて一覧に戻す
   function select(widgetId: string | null) {
     setSelectedId(widgetId);
-    if (!settingsId || !widgetId || widgetId === settingsId) return;
+    if (!widgetId) {
+      if (settingsId) closeSettings();
+      return;
+    }
+    if (!settingsId || widgetId === settingsId) return;
     const widget = widgets.find((w) => w.id === widgetId);
     saves.flush();
     setSettingsId(widget && SETTINGS_SCHEMAS[widget.type] ? widgetId : null);
@@ -737,6 +743,10 @@ export function Editor({ board, user }: Props) {
             </div>
 
             <ul className="flex flex-wrap justify-center gap-x-6 gap-y-1 text-xs text-ink-3">
+              <li className="flex items-center gap-1.5">
+                <MousePointerClick aria-hidden className="size-3.5" />
+                クリックで設定
+              </li>
               <li className="flex items-center gap-1.5">
                 <Move aria-hidden className="size-3.5" />
                 ドラッグで移動
