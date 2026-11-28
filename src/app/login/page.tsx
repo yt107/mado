@@ -12,6 +12,8 @@ export const metadata: Metadata = {
   title: "ログイン",
 };
 
+const TERMS_NOTICE_ID = "terms-notice";
+
 export default function LoginPage() {
   return (
     <AuthShell
@@ -31,25 +33,34 @@ export default function LoginPage() {
         はじめての方も、Googleで続行するとそのまま登録できます。
       </p>
       {/* URL の ?error= を読むので、Suspense の中に置く。読む前は、ボタンだけを出す */}
-      <Suspense fallback={<GoogleSignInButton className="mt-8" />}>
-        <LoginActions />
+      <Suspense
+        fallback={
+          <GoogleSignInButton className="mt-8" describedBy={TERMS_NOTICE_ID} />
+        }
+      >
+        <LoginActions describedBy={TERMS_NOTICE_ID} />
       </Suspense>
-      <p className="mt-8 text-center text-xs leading-relaxed text-ink-3">
-        初回ログイン時に、
+      {/* ボタンのすぐ下に置き、ボタンの説明として読み上げる（aria-describedby）。
+          押すと同意したとみなすことを、押す前に見せる（民法548条の2の「表示」） */}
+      <p
+        id={TERMS_NOTICE_ID}
+        className="mt-4 text-center text-xs leading-relaxed text-balance text-ink-3"
+      >
+        続行すると、
         <Link
           href="/terms"
           className="underline underline-offset-4 hover:text-ink"
         >
           利用規約
         </Link>
-        と
+        に同意し、
         <Link
           href="/privacy"
           className="underline underline-offset-4 hover:text-ink"
         >
           プライバシーポリシー
         </Link>
-        への同意をお願いしています。
+        を確認したものとみなします。
       </p>
     </AuthShell>
   );

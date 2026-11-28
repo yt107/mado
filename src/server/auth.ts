@@ -33,12 +33,23 @@ export const auth = betterAuth({
   },
   user: {
     additionalFields: {
-      // 利用規約に同意した日時。NULL なら確認画面へ進ませる（er.md）
+      // 利用規約に同意した日時。登録のときに入れる（下の databaseHooks。er.md）
       termsAcceptedAt: {
         type: "date",
         required: false,
-        // ログインの仕組みからは書き込めないようにする。同意の API からだけ書き込む
+        // ログインの画面などから送られた値では、書き込めないようにする
         input: false,
+      },
+    },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        // ログインの画面には「続行すると、利用規約に同意し、…とみなします」と書いてある。
+        // それを見て「Google で続行」を押して登録したので、登録した日時を、同意した日時にする
+        before: async (user) => ({
+          data: { ...user, termsAcceptedAt: new Date() },
+        }),
       },
     },
   },

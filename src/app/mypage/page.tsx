@@ -6,7 +6,7 @@ import { Suspense } from "react";
 import { AccountMenu } from "@/components/account-menu";
 import { Logo } from "@/components/logo";
 import { getMyDataCounts } from "@/lib/board/data";
-import { verifyConsentedUser } from "@/lib/session";
+import { verifySession } from "@/lib/session";
 
 import { ProfileCard } from "./profile-card";
 import { WithdrawCard } from "./withdraw-card";
@@ -34,7 +34,7 @@ export default function MyPage() {
 }
 
 async function Account() {
-  const user = await verifyConsentedUser();
+  const user = await verifySession();
   const counts = await getMyDataCounts(user.id);
 
   return (

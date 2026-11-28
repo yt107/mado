@@ -16,7 +16,6 @@ import {
 import { createNewsFeedSchema, newsItemsQuerySchema } from "@/lib/widgets/news";
 
 import { requireAuth } from "../middleware/require-auth";
-import { requireConsent } from "../middleware/require-consent";
 import {
   addCalendarSubscription,
   getCalendarEvents,
@@ -41,9 +40,8 @@ const placementParamSchema = widgetParamSchema.extend({
 
 // 編集モードの API（docs/api.md の区切り3）。置くのは /api/boards/:boardId/widgets
 const widgets = new Hono()
-  // ログインしていて、利用規約に同意した人だけが使える
+  // ログインした人だけが使える
   .use(requireAuth)
-  .use(requireConsent)
   // 設定を変える
   .patch(
     "/:widgetId",

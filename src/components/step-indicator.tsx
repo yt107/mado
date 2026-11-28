@@ -1,20 +1,18 @@
-import { Check, ChevronRight } from "lucide-react";
+import { Check } from "lucide-react";
 
 import { cx } from "@/lib/cx";
 
-// はじめるまでの手順（Googleでログイン → 確認 → テンプレート → 地域）。
+// はじめるまでの手順（Googleでログイン → テンプレート → 地域）。テンプレートの画面の上に出す。
 // 画面設計の「地域と表示画面」は、表示画面を選ばないことにしたので「地域」だけにした（docs/er.md）
-const STEPS = ["Googleでログイン", "確認", "テンプレート", "地域"];
+const STEPS = ["Googleでログイン", "テンプレート", "地域"];
 
 type Props = {
   // 今の手順（1から数える）
   current: number;
-  // pill：枠で囲む（ログインの画面）、plain：線でつなぐ（テンプレートの画面の上）
-  variant?: "pill" | "plain";
   className?: string;
 };
 
-export function StepIndicator({ current, variant = "pill", className }: Props) {
+export function StepIndicator({ current, className }: Props) {
   return (
     <ol
       aria-label="はじめるまでの手順"
@@ -30,20 +28,11 @@ export function StepIndicator({ current, variant = "pill", className }: Props) {
             aria-current={active ? "step" : undefined}
             className="flex items-center gap-2"
           >
-            {i > 0 &&
-              (variant === "pill" ? (
-                <ChevronRight aria-hidden className="size-3.5 text-ink-3" />
-              ) : (
-                <span aria-hidden className="h-px w-6 bg-line" />
-              ))}
+            {i > 0 && <span aria-hidden className="h-px w-6 bg-line" />}
             <span
               className={cx(
                 "flex items-center gap-2 text-xs",
-                variant === "pill" && "rounded-full border py-1 pr-3 pl-1",
-                variant === "pill" &&
-                  (active ? "border-accent/30 bg-accent/10" : "border-line"),
-                active ? "font-bold text-accent-ink" : "text-ink-2",
-                variant === "plain" && active && "text-ink",
+                active ? "font-bold text-ink" : "text-ink-2",
               )}
             >
               <span

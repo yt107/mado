@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { verifyConsentedUser } from "@/lib/session";
+import { verifySession } from "@/lib/session";
 
 import { WithdrawRunner } from "./withdraw-runner";
 
@@ -21,6 +21,6 @@ export default function WithdrawPage() {
 }
 
 async function Withdraw() {
-  const user = await verifyConsentedUser();
+  const user = await verifySession();
   return <WithdrawRunner userId={user.id} email={user.email} />;
 }

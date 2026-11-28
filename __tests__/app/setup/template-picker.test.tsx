@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, test, vi } from "vitest";
 
 import { TemplatePicker } from "@/app/setup/template-picker";
@@ -41,6 +47,22 @@ describe("TemplatePicker", () => {
       true,
     );
     expect(screen.getByRole("heading", { name: "ベーシック" })).toBeTruthy();
+  });
+
+  test("手順は3つで、テンプレートは2つ目、地域は3つ目", () => {
+    render(<TemplatePicker />);
+    const steps = () =>
+      within(
+        screen.getByRole("list", { name: "はじめるまでの手順" }),
+      ).getAllByRole("listitem");
+    const current = () =>
+      steps().find((step) => step.getAttribute("aria-current") === "step");
+
+    expect(steps()).toHaveLength(3);
+    expect(current()?.textContent).toBe("2テンプレート");
+
+    fireEvent.click(screen.getByRole("button", { name: "次へ（天気の地域）" }));
+    expect(current()?.textContent).toBe("3地域");
   });
 
   test("天気のあるテンプレートは、地域を選んでから作る", async () => {

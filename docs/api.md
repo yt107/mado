@@ -18,7 +18,7 @@ Mado の API の一覧と、API 全体の決めごと。OpenAPI は今は書か�
 - ログイン状態は、Better Auth のセッション（Cookie）で持つ
 - ログインが必要ないのは、`/api/health` と `/api/auth/*` だけ。`/api/maintenance/*` は、ログインの代わりに合言葉（`CRON_SECRET`）で確かめる
 - ログインの期限（30日）を延ばすのは、`GET /api/auth/get-session` を呼んだときだけ。ほかの API と画面（Server Components）では延ばさない（Cookie を送り直せない場所で延ばすと、DB の期限だけが延びて Cookie が先に切れるため）
-- 利用規約にまだ同意していないユーザーが使えるのは、`GET /api/me`、`POST /api/me/consent`、`DELETE /api/me` だけ
+- 利用規約への同意は、ログインの画面で「Google で続行」を押したときとみなし、登録のときに `users.terms_accepted_at` に日時を入れる（Better Auth の `databaseHooks`）。同意のための API はない
 - 他人のデータを指定されたら 404 を返す。403 を返すと、そのデータがあることが分かってしまうため
 - データを変える API（POST、PUT、PATCH、DELETE）は、Hono の CSRF ミドルウェアで、リクエストの送り元（Origin）を確かめる
 
@@ -34,7 +34,6 @@ Mado の API の一覧と、API 全体の決めごと。OpenAPI は今は書か�
 |---|---|---|
 | 400 | `validation_error` | 入力が不正 |
 | 401 | `unauthorized` | ログインしていない |
-| 403 | `terms_not_accepted` | 利用規約に同意していない |
 | 403 | `reauthentication_required` | 退会の前の本人確認（Googleでの再ログイン）が必要 |
 | 404 | `not_found` | 見つからない（他人のデータも含む） |
 | 409 | `conflict` | 状態が合わない（ボードを2つ作ろうとした、配置が重なる、同じフィードを2回登録した など） |
@@ -53,14 +52,13 @@ Mado の API の一覧と、API 全体の決めごと。OpenAPI は今は書か�
 | GET | `/api/auth/get-session` | 今のログイン状態 | 2 |
 | POST | `/api/auth/sign-out` | ログアウト | 2 |
 
-### 自分（初回の確認画面、マイページ）
+### 自分（マイページ）
 
 | メソッド | パス | 用途 | 区切り |
 |---|---|---|---|
 | GET | `/api/me` | 自分の情報 | 2 |
-| POST | `/api/me/consent` | 利用規約に同意する。ユーザー名も一緒に保存する | 2 |
 | PATCH | `/api/me` | ユーザー名を変える | 5 |
-| DELETE | `/api/me` | 未同意ならすぐ削除（キャンセル）。同意済みなら、再ログインから10分以内のときだけ削除（退会） | 2（キャンセル）、5（退会） |
+| DELETE | `/api/me` | 再ログインから10分以内のときだけ削除（退会） | 5 |
 
 ### ボード
 
@@ -115,7 +113,7 @@ Mado の API の一覧と、API 全体の決めごと。OpenAPI は今は書か�
 
 ### `GET /api/me`
 
-自分の情報を返す。初回の確認画面に進ませるかは、`termsAcceptedAt` が `null` かどうかで決める。
+自分の情報を返す。`termsAcceptedAt` は登録した日時（同意したとみなした日時）。同意の確認画面があったころに登録して、同意しなかったユーザーだけ `null`。
 
 200：
 
@@ -125,34 +123,16 @@ Mado の API の一覧と、API 全体の決めごと。OpenAPI は今は書か�
   "name": "Taro",
   "email": "taro@example.com",
   "image": "https://lh3.googleusercontent.com/...",
-  "termsAcceptedAt": null,
+  "termsAcceptedAt": "2026-11-20T01:00:00.000Z",
   "createdAt": "2026-11-20T01:00:00.000Z"
 }
 ```
-
-### `POST /api/me/consent`
-
-利用規約に同意し、ユーザー名を保存する。同意した日時はサーバーが記録し、画面からは書き換えられない。
-
-リクエスト：
-
-```json
-{ "name": "Taro", "agreeToTerms": true }
-```
-
-- `name`：前後の空白を除いて1〜50文字
-- `agreeToTerms`：`true` でなければ 400
-
-200：`GET /api/me` と同じ形（`termsAcceptedAt` に日時が入る）
-
-- すでに同意済みなら 409
 
 ### `DELETE /api/me`
 
 自分を削除する。`accounts`、`sessions`、ボード以下のデータも、まとめて削除される（ON DELETE CASCADE）。
 
-- 未同意（`termsAcceptedAt` が `null`）なら、すぐに削除する。確認画面の「キャンセルしてログアウト」で使う
-- 同意済みなら、今のセッションが作られてから10分以内（Googleで再ログインした直後）のときだけ削除する。それ以外は 403（`reauthentication_required`）。退会で使う（区切り5）
+- 今のセッションが作られてから10分以内（Googleで再ログインした直後）のときだけ削除する。それ以外は 403（`reauthentication_required`）。退会で使う（区切り5）
 
 204：本文なし。セッションの Cookie も消す
 
@@ -521,7 +501,7 @@ iCal の URL を登録する。一度読んでみて、iCal として読めた�
 
 ### `PATCH /api/me`
 
-ユーザー名を変える（マイページ）。利用規約に同意していなければ 403（`terms_not_accepted`）。
+ユーザー名を変える（マイページ）。
 
 リクエスト：
 
@@ -529,7 +509,7 @@ iCal の URL を登録する。一度読んでみて、iCal として読めた�
 { "name": "Taro" }
 ```
 
-- `name`：前後の空白を除いて1〜50文字（`POST /api/me/consent` と同じ）
+- `name`：前後の空白を除いて1〜50文字
 
 200：`GET /api/me` と同じ形
 
@@ -547,12 +527,11 @@ iCal の URL を登録する。一度読んでみて、iCal として読めた�
 
 次のものを削除して、件数を返す。
 
-- 登録から24時間たっても、利用規約に同意していないユーザー（`accounts`・`sessions` も一緒に消える）
 - 期限が切れた `sessions`
 - 期限が切れた `verifications`（Google ログインの途中の一時的な値）
 
 200：
 
 ```json
-{ "deleted": { "users": 1, "sessions": 3, "verifications": 2 } }
+{ "deleted": { "sessions": 3, "verifications": 2 } }
 ```

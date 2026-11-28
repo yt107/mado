@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { hasBoard } from "@/lib/board/data";
-import { verifyConsentedUser } from "@/lib/session";
+import { verifySession } from "@/lib/session";
 
 import { TemplatePicker } from "./template-picker";
 
@@ -28,8 +28,8 @@ export default function SetupPage() {
 }
 
 async function Setup() {
-  // 同意していなければ確認画面へ、ボードがもうあれば表示モードへ移す
-  const user = await verifyConsentedUser();
+  // ログインしていなければログインの画面へ、ボードがもうあれば表示モードへ移す
+  const user = await verifySession();
   if (await hasBoard(user.id)) {
     redirect("/");
   }

@@ -11,7 +11,7 @@ import { GoogleSignInButton } from "./google-sign-in-button";
 const subscribeNothing = () => () => {};
 
 // ログインの画面のボタンと、うまくいかないときの案内
-export function LoginActions() {
+export function LoginActions({ describedBy }: { describedBy?: string }) {
   // Google のログインが失敗・中断して戻ってきたとき、Better Auth は ?error= を付ける
   const loginFailed = useSearchParams().has("error");
   // アプリの中のブラウザかどうかは、ブラウザでしか分からない（サーバーでは「使える」とする）
@@ -50,6 +50,7 @@ export function LoginActions() {
       <GoogleSignInButton
         className={unsupported || loginFailed ? "mt-6" : "mt-8"}
         disabled={unsupported}
+        describedBy={describedBy}
       />
     </>
   );
