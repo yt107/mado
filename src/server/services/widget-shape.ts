@@ -41,6 +41,7 @@ export const widgetWith = {
       title: true,
       feedUrl: true,
       sortOrder: true,
+      visible: true,
       lastFetchedAt: true,
       lastError: true,
     },
@@ -71,6 +72,7 @@ type WidgetRow = {
     title: string;
     feedUrl: string;
     sortOrder: number;
+    visible: boolean;
   } & FetchStatus)[];
 };
 

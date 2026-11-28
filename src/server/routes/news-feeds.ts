@@ -20,7 +20,7 @@ const newsFeeds = new Hono()
   // ログインしていて、利用規約に同意した人だけが使える
   .use(requireAuth)
   .use(requireConsent)
-  // 名前と並び順を変える
+  // 名前・表示するか・並び順を変える
   .patch(
     "/:feedId",
     zValidator("param", feedParamSchema),

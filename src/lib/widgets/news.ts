@@ -6,6 +6,8 @@ import { refreshMinutesSchema } from "./refresh";
 
 export const NEWS_FEEDS_MAX = 10;
 export const NEWS_TITLE_MAX = 100;
+// 1つのフィードから返す記事の数（1列に出すのは多くても10件）
+export const NEWS_ITEMS_PER_FEED = 10;
 // 1×1 で見出しを切り替える間隔（画面設計：10秒ごと）
 export const NEWS_ROTATE_MS = 10_000;
 
@@ -18,8 +20,6 @@ export const newsSettingsSchema = z.object({
   showImages: z.boolean().default(true),
   // 見出しを自動で送る（1×1）
   autoRotate: z.boolean().default(true),
-  // 同じ記事（同じリンクか、同じ見出し）を1つにまとめる
-  dedupe: z.boolean().default(true),
   refreshMinutes: refreshMinutesSchema(15),
 });
 
@@ -35,6 +35,8 @@ export const newsFeedSchema = z.object({
   title: z.string(),
   feedUrl: z.string(),
   sortOrder: z.number().int(),
+  // ウィジェットに出すか（false なら、登録したまま隠す）
+  visible: z.boolean(),
   lastFetchedAt: z.string().nullable(),
   lastError: z.string().nullable(),
 });
@@ -69,6 +71,21 @@ export const createNewsFeedSchema = z.object({
     .max(2048, "URL が長すぎます"),
 });
 
+// 記事を読むフィード（ID をカンマでつなぐ）。画面が今表示にしているフィードを渡す。
+// 表示・非表示の保存が終わる前に読み直しても、画面と同じフィードを読むため
+export const newsItemsQuerySchema = z.object({
+  feeds: z
+    .string()
+    .transform((value) => value.split(","))
+    .pipe(
+      z
+        .array(z.uuid("フィードの ID が正しくありません"))
+        .min(1, "フィードを選んでください")
+        .max(NEWS_FEEDS_MAX, `フィードは${NEWS_FEEDS_MAX}個までです`),
+    )
+    .optional(),
+});
+
 export const newsTitleSchema = z
   .string({ error: "名前を入力してください" })
   .trim()
@@ -84,50 +101,47 @@ export const updateNewsFeedSchema = z
       .int("並び順が正しくありません")
       .min(0, "並び順が正しくありません")
       .optional(),
+    visible: z
+      .boolean({ error: "表示するかどうかが正しくありません" })
+      .optional(),
   })
   .refine(
-    (value) => value.title !== undefined || value.sortOrder !== undefined,
+    (value) =>
+      value.title !== undefined ||
+      value.sortOrder !== undefined ||
+      value.visible !== undefined,
     { error: "変える値がありません" },
   );
 
-// よく使われるフィード（画面設計の「＋ はてブ人気」「＋ Qiita トレンド」）
+// よく使われるフィード（設定パネルの「＋」のボタン）
 export const NEWS_PRESETS = [
-  { label: "はてブ人気", url: "https://b.hatena.ne.jp/hotentry/all.rss" },
-  { label: "Qiita トレンド", url: "https://qiita.com/popular-items/feed" },
+  {
+    label: "はてブ テクノロジー",
+    url: "https://b.hatena.ne.jp/hotentry/it.rss",
+  },
+  { label: "Qiita 人気の記事", url: "https://qiita.com/popular-items/feed" },
+  { label: "Zenn トレンド", url: "https://zenn.dev/feed" },
+  {
+    label: "企業テックブログRSS",
+    url: "https://yamadashy.github.io/tech-blog-rss-feed/feeds/rss.xml",
+  },
 ] as const;
 
-// フィードの色（並び順で決める。ニュースの見出しの前の印）
-export const FEED_COLORS = [
-  "#e5534b",
-  "#5b8def",
-  "#2bb3a8",
-  "#3fb76f",
-  "#a371f7",
-  "#ee9a3a",
-  "#e86fa8",
-  "#d4b22c",
+// ボタンにはしないが、RSS の URL の探し方を案内するサイト（利用者が自分で URL を貼る）
+export const NEWS_RSS_GUIDES = [
+  { label: "NHK", url: "https://www.nhk.or.jp/toppage/rss/index.html" },
+  { label: "Yahoo!ニュース", url: "https://news.yahoo.co.jp/rss" },
 ] as const;
 
-export function feedColor(sortOrder: number): string {
-  return FEED_COLORS[sortOrder % FEED_COLORS.length] ?? FEED_COLORS[0];
-}
-
-function normalizedTitle(title: string) {
-  return title.replace(/\s+/g, "").toLowerCase();
-}
-
-// 同じ記事を1つにまとめる（先に出てきた、新しいほうを残す）
-export function dedupeItems(items: NewsItem[]): NewsItem[] {
-  const seenLinks = new Set<string>();
-  const seenTitles = new Set<string>();
-  return items.filter((item) => {
-    const link = item.link.replace(/[?#].*$/, "");
-    const title = normalizedTitle(item.title);
-    if (seenLinks.has(link) || seenTitles.has(title)) return false;
-    seenLinks.add(link);
-    seenTitles.add(title);
-    return true;
-  });
+// 列に並べるフィード。表示するフィードを並び順に、横のマスの数だけ（1マスに1列）
+export function newsColumns<T extends Pick<NewsFeed, "sortOrder" | "visible">>(
+  feeds: T[],
+  width: number,
+): T[] {
+  return feeds
+    .filter((feed) => feed.visible)
+    .toSorted((a, b) => a.sortOrder - b.sortOrder)
+    .slice(0, Math.max(1, width));
 }
 
 // 今あるフィードの記事だけを残す。フィードを消した直後の読み直しは、消す前の記事を返すことがある

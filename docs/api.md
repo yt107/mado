@@ -92,7 +92,7 @@ Mado の API の一覧と、API 全体の決めごと。OpenAPI は今は書か�
 | DELETE | `/api/calendar-subscriptions/:id` | 登録をやめる | 4 |
 | GET | `/api/widgets/:widgetId/calendar-events` | 予定を取得する（サーバーが iCal を読みに行く） | 4 |
 | POST | `/api/widgets/:widgetId/news-feeds` | フィードを登録する（サイトの URL なら、フィードを探す） | 4 |
-| PATCH | `/api/news-feeds/:id` | 名前や並び順を変える | 4 |
+| PATCH | `/api/news-feeds/:id` | 名前・表示するか・並び順を変える | 4 |
 | DELETE | `/api/news-feeds/:id` | 登録をやめる | 4 |
 | GET | `/api/widgets/:widgetId/news-items` | 記事を取得する | 4 |
 
@@ -435,18 +435,20 @@ iCal の URL を登録する。一度読んでみて、iCal として読めた�
 201：
 
 ```json
-{ "id": "…", "title": "Zennのトレンド", "feedUrl": "https://zenn.dev/feed", "sortOrder": 0, "lastFetchedAt": "…", "lastError": null }
+{ "id": "…", "title": "Zennのトレンド", "feedUrl": "https://zenn.dev/feed", "sortOrder": 0, "visible": true, "lastFetchedAt": "…", "lastError": null }
 ```
 
-- 名前はフィードのタイトル（なければサイトの名前）。いちばん下に足す
+- 名前はフィードのタイトル（なければサイトの名前）。いちばん下に、表示する状態で足す
 - 1つのニュースのウィジェットに10個まで（400）。同じフィードは2回登録できない（409）
 - フィードが見つからない・読めなければ 422（`fetch_failed`）
 
 ### `PATCH /api/news-feeds/:feedId`
 
-名前と並び順を変える。リクエスト：`{ "title": "…" }`、`{ "sortOrder": 0 }`
+名前・表示するか・並び順を変える。リクエスト：`{ "title": "…" }`、`{ "visible": false }`、`{ "sortOrder": 0 }`
 
+- `visible` が `false` のフィードは、登録したまま、ウィジェットに出さない（記事も読まない）
 - `sortOrder` は「何番目（0から数える）に動かすか」。ほかのフィードも 0, 1, 2… に振り直す
+- 変える値が1つもなければ 400
 
 200：フィード
 
@@ -456,19 +458,27 @@ iCal の URL を登録する。一度読んでみて、iCal として読めた�
 
 ### `GET /api/widgets/:widgetId/news-items`
 
-登録したフィードを全部読み、記事を新しい順に返す（全部で100件まで。1つのフィードからは20件まで）。
+フィードを並び順に読み、フィードごとに、記事を新しい順で10件まで返す。
+
+| クエリ | 値 |
+|---|---|
+| `feeds`（なくてもよい） | 読むフィードの ID をカンマでつないだもの（10個まで）。ほかのウィジェットのフィードの ID は無視する。形が正しくなければ 400 |
+
+- 画面は、今表示にしているフィードを `feeds` で渡す。目のボタンで表示に戻した直後、保存（`PATCH /api/news-feeds/:feedId`）が終わる前に読み直しても、記事が欠けないようにするため
+- `feeds` がなければ、表示するフィード（`visible` が `true`）を読む。隠したフィードは読まない
 
 200：
 
 ```json
 {
-  "feeds": [{ "id": "…", "title": "Zennのトレンド", "feedUrl": "…", "sortOrder": 0, "lastFetchedAt": "…", "lastError": null }],
+  "feeds": [{ "id": "…", "title": "Zennのトレンド", "feedUrl": "…", "sortOrder": 0, "visible": true, "lastFetchedAt": "…", "lastError": null }],
   "items": [
     { "id": "…", "feedId": "…", "title": "…", "link": "https://zenn.dev/…", "publishedAt": "2026-11-19T07:28:27.000Z", "image": null, "summary": "…" }
   ]
 }
 ```
 
+- `items` は、フィードの並び順に、フィードごとにまとめて並ぶ。画面は、表示するフィードを横1マスにつき1列で並べる（列の数は、横のマスの数と表示するフィードの数の少ないほう）
 - `image` は、フィードに書かれた画像（`enclosure`、`media:thumbnail` など）。https のものだけ
 - 読めなかったフィードは `lastError` に理由を残す
 - 記事は DB に保存しない
@@ -505,7 +515,6 @@ iCal の URL を登録する。一度読んでみて、iCal として読めた�
 | `count` | `"auto"`（大きさに合わせる）、`"3"`、`"5"`、`"10"` | `"auto"` |
 | `showImages` | 画像を出す（2×2 以上） | `true` |
 | `autoRotate` | 見出しを10秒ごとに送る（1×1） | `true` |
-| `dedupe` | 同じ記事（同じリンクか見出し）をまとめる | `true` |
 | `refreshMinutes` | `15`、`30`、`60` | `15` |
 
 ## 区切り5の API の詳細（マイページ・退会・掃除）

@@ -29,6 +29,13 @@
       "when": 1795099001020,
       "tag": "0003_calendar_subscriptions_and_news_feeds",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795856665539,
+      "tag": "0004_news_feeds_visible",
+      "breakpoints": true
     }
   ]
 }
