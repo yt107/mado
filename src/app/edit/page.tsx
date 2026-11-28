@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { getMyBoard } from "@/lib/board/data";
-import { verifyConsentedUser } from "@/lib/session";
+import { verifySession } from "@/lib/session";
 
 import { Editor } from "./editor";
 
@@ -28,8 +28,8 @@ export default function EditPage() {
 }
 
 async function Edit() {
-  // 同意していなければ確認画面へ、ボードがまだなければテンプレートの選択へ移す
-  const user = await verifyConsentedUser();
+  // ログインしていなければログインの画面へ、ボードがまだなければテンプレートの選択へ移す
+  const user = await verifySession();
   const board = await getMyBoard(user.id);
   if (!board) {
     redirect("/setup");

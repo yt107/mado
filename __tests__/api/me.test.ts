@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import app from "@/server/app";
 import { db } from "@/server/db";
 import { boards, sessions, users, widgets } from "@/server/db/schema";
-import { SESSION_EXPIRES_IN_SECONDS } from "@/server/auth";
+import { auth, SESSION_EXPIRES_IN_SECONDS } from "@/server/auth";
 import { countMyData } from "@/server/services/boards";
 
 import { loginAs } from "../helpers/test-auth";
@@ -18,12 +18,18 @@ vi.mock("@/server/db", async () => {
 
 const userId = "user_1";
 
-// テストの前に、ユーザーを1人作っておく（まだ同意していない）
+// テストの前に、ユーザーを1人作っておく（登録したときに同意している）
+const acceptedAt = new Date("2026-11-21T00:00:00.000Z");
 let createdAt: Date;
 beforeEach(async () => {
   const [created] = await db
     .insert(users)
-    .values({ id: userId, name: "Taro Google", email: "taro@example.com" })
+    .values({
+      id: userId,
+      name: "Taro Google",
+      email: "taro@example.com",
+      termsAcceptedAt: acceptedAt,
+    })
     .returning();
   createdAt = created!.createdAt;
 });
@@ -36,21 +42,20 @@ async function findUser() {
   return db.query.users.findFirst({ where: eq(users.id, userId) });
 }
 
-async function acceptTerms() {
+// 同意した日時がないユーザーにする（同意の確認画面があったころに登録して、同意しなかった人）
+async function clearTermsAcceptedAt() {
   await db
     .update(users)
-    .set({ termsAcceptedAt: new Date() })
+    .set({ termsAcceptedAt: null })
     .where(eq(users.id, userId));
 }
 
-function postConsent(body: unknown, headers?: Headers) {
-  const h = new Headers(headers);
-  h.set("Content-Type", "application/json");
-  return app.request("/api/me/consent", {
-    method: "POST",
-    headers: h,
-    body: JSON.stringify(body),
-  });
+// セッションを11分前に作ったことにする（退会に必要な、再ログインの10分を過ぎる）
+async function ageSessionBeyondReauth() {
+  await db
+    .update(sessions)
+    .set({ createdAt: new Date(Date.now() - 11 * 60 * 1000) })
+    .where(eq(sessions.userId, userId));
 }
 
 function deleteMe(headers?: Headers) {
@@ -79,90 +84,33 @@ describe("GET /api/me", () => {
       name: "Taro Google",
       email: "taro@example.com",
       image: null,
-      termsAcceptedAt: null,
+      termsAcceptedAt: acceptedAt.toISOString(),
       createdAt: createdAt.toISOString(),
     });
   });
 });
 
-describe("POST /api/me/consent", () => {
-  test("同意すると、ユーザー名と同意した日時を保存する", async () => {
-    const res = await postConsent(
-      { name: "  たろう  ", agreeToTerms: true },
-      await loginAs(userId),
+describe("登録", () => {
+  test("Google で登録すると、登録した日時を同意した日時として保存する", async () => {
+    const ctx = await auth.$context;
+    const before = Date.now();
+    // Google で初めてログインしたときと同じ方法で、ユーザーを作る
+    const { user } = await ctx.internalAdapter.createOAuthUser(
+      { name: "Hanako", email: "hanako@example.com", emailVerified: true },
+      { providerId: "google", accountId: "google-hanako" },
     );
 
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toMatchObject({ id: userId, name: "たろう" });
-    expect(body.termsAcceptedAt).toEqual(expect.any(String));
-
-    const saved = await findUser();
-    expect(saved?.name).toBe("たろう");
+    const saved = await db.query.users.findFirst({
+      where: eq(users.id, user.id),
+    });
     expect(saved?.termsAcceptedAt).toBeInstanceOf(Date);
-  });
-
-  test("同意済みなら 409", async () => {
-    await acceptTerms();
-    const res = await postConsent(
-      { name: "たろう", agreeToTerms: true },
-      await loginAs(userId),
-    );
-
-    expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({
-      error: { code: "conflict", message: "すでに同意しています" },
-    });
-  });
-
-  test.each([
-    [{ name: "   ", agreeToTerms: true }, "ユーザー名を入力してください"],
-    [
-      { name: "あ".repeat(51), agreeToTerms: true },
-      "ユーザー名は50文字までにしてください",
-    ],
-    [{ agreeToTerms: true }, "ユーザー名を入力してください"],
-    [{ name: "たろう", agreeToTerms: false }, "利用規約に同意してください"],
-    [{ name: "たろう" }, "利用規約に同意してください"],
-  ])("入力が正しくなければ 400（%o）", async (body, message) => {
-    const res = await postConsent(body, await loginAs(userId));
-
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({
-      error: { code: "validation_error", message },
-    });
-    // DB は変わらない
-    expect((await findUser())?.termsAcceptedAt).toBeNull();
-  });
-
-  test("50文字ちょうどなら保存できる", async () => {
-    const res = await postConsent(
-      { name: "あ".repeat(50), agreeToTerms: true },
-      await loginAs(userId),
-    );
-    expect(res.status).toBe(200);
-  });
-
-  test("ログインしていなければ 401", async () => {
-    const res = await postConsent({ name: "たろう", agreeToTerms: true });
-    expect(res.status).toBe(401);
-  });
-
-  test("ほかのサイトのフォームから送られたら 403（CSRF 対策）", async () => {
-    const headers = await loginAs(userId);
-    headers.set("Content-Type", "application/x-www-form-urlencoded");
-    headers.set("Origin", "https://evil.example");
-    const res = await app.request("/api/me/consent", {
-      method: "POST",
-      headers,
-      body: "name=evil&agreeToTerms=true",
-    });
-    expect(res.status).toBe(403);
+    expect(saved!.termsAcceptedAt!.getTime()).toBeGreaterThanOrEqual(before);
+    expect(saved!.termsAcceptedAt!.getTime()).toBeLessThanOrEqual(Date.now());
   });
 });
 
 describe("DELETE /api/me", () => {
-  test("同意していなければ、すぐに削除して、Cookie も消す", async () => {
+  test("ログインしてから10分以内なら削除して、Cookie も消す", async () => {
     const headers = await loginAs(userId);
     const res = await deleteMe(headers);
 
@@ -181,22 +129,9 @@ describe("DELETE /api/me", () => {
     expect(after.status).toBe(401);
   });
 
-  test("同意済みでも、ログインしてから10分以内なら削除できる（退会）", async () => {
-    await acceptTerms();
-    const res = await deleteMe(await loginAs(userId));
-
-    expect(res.status).toBe(204);
-    expect(await findUser()).toBeUndefined();
-  });
-
-  test("同意済みで、ログインしてから10分を過ぎていたら 403", async () => {
-    await acceptTerms();
+  test("ログインしてから10分を過ぎていたら 403", async () => {
     const headers = await loginAs(userId);
-    // セッションを11分前に作ったことにする
-    await db
-      .update(sessions)
-      .set({ createdAt: new Date(Date.now() - 11 * 60 * 1000) })
-      .where(eq(sessions.userId, userId));
+    await ageSessionBeyondReauth();
 
     const res = await deleteMe(headers);
 
@@ -207,6 +142,17 @@ describe("DELETE /api/me", () => {
         message: "もう一度ログインしてから、やり直してください",
       },
     });
+    expect(await findUser()).toBeDefined();
+  });
+
+  test("同意した日時がないユーザーも、10分を過ぎていたら 403（すぐには消さない）", async () => {
+    await clearTermsAcceptedAt();
+    const headers = await loginAs(userId);
+    await ageSessionBeyondReauth();
+
+    const res = await deleteMe(headers);
+
+    expect(res.status).toBe(403);
     expect(await findUser()).toBeDefined();
   });
 
@@ -237,7 +183,6 @@ function patchMe(body: unknown, headers?: Headers) {
 
 describe("PATCH /api/me", () => {
   test("ユーザー名を、前後の空白を除いて保存する", async () => {
-    await acceptTerms();
     const res = await patchMe({ name: "  Taro  " }, await loginAs(userId));
 
     expect(res.status).toBe(200);
@@ -246,7 +191,6 @@ describe("PATCH /api/me", () => {
   });
 
   test("空のユーザー名は 400", async () => {
-    await acceptTerms();
     const res = await patchMe({ name: "   " }, await loginAs(userId));
 
     expect(res.status).toBe(400);
@@ -260,19 +204,16 @@ describe("PATCH /api/me", () => {
   });
 
   test("51文字のユーザー名は 400", async () => {
-    await acceptTerms();
     const res = await patchMe({ name: "あ".repeat(51) }, await loginAs(userId));
     expect(res.status).toBe(400);
   });
 
-  test("利用規約に同意していなければ 403", async () => {
+  test("同意した日時がないユーザーでも変えられる（確認画面で止めない）", async () => {
+    await clearTermsAcceptedAt();
     const res = await patchMe({ name: "Taro" }, await loginAs(userId));
 
-    expect(res.status).toBe(403);
-    expect(await res.json()).toMatchObject({
-      error: { code: "terms_not_accepted" },
-    });
-    expect((await findUser())?.name).toBe("Taro Google");
+    expect(res.status).toBe(200);
+    expect((await findUser())?.name).toBe("Taro");
   });
 
   test("ログインしていなければ 401", async () => {

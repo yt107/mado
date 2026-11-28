@@ -58,14 +58,9 @@ export function TemplatePicker() {
           ? { templateId: id, location: chosen }
           : { templateId: id },
       });
-      // 401 と 403 はミドルウェアが返すので、API の型には出てこない。数として比べる
-      const status = res.status as number;
-      if (status === 401) {
+      // 401 はミドルウェアが返すので、API の型には出てこない。数として比べる
+      if ((res.status as number) === 401) {
         router.push("/login");
-        return;
-      }
-      if (status === 403) {
-        router.push("/welcome");
         return;
       }
       // 作れた（または、もうボードがあった）なら、表示モードへ
@@ -99,8 +94,7 @@ export function TemplatePicker() {
       <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface px-6">
         <Logo />
         <StepIndicator
-          current={step === "template" ? 3 : 4}
-          variant="plain"
+          current={step === "template" ? 2 : 3}
           className="hidden lg:flex"
         />
         {/* テンプレートの選択でスキップしたら、白紙のボードで始める。

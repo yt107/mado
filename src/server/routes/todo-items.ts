@@ -4,7 +4,6 @@ import * as z from "zod";
 import { updateTodoItemSchema } from "@/lib/board/schema";
 
 import { requireAuth } from "../middleware/require-auth";
-import { requireConsent } from "../middleware/require-consent";
 import { deleteTodoItem, updateTodoItem } from "../services/contents";
 import { zValidator } from "../validator";
 import { widgetErrorResponse } from "./widget-errors";
@@ -15,9 +14,8 @@ const itemParamSchema = z.object({
 
 // ToDo の項目の API（docs/api.md の区切り4）。足すのは /api/widgets/:widgetId/todo-items
 const todoItems = new Hono()
-  // ログインしていて、利用規約に同意した人だけが使える
+  // ログインした人だけが使える
   .use(requireAuth)
-  .use(requireConsent)
   // 文言・完了・並び順を変える（表示モードのチェックもこれを使う）
   .patch(
     "/:itemId",

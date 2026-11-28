@@ -49,7 +49,7 @@ function postBoard(body: unknown, headers?: Headers) {
   });
 }
 
-describe("ログインと同意", () => {
+describe("ログイン", () => {
   test.each([
     ["GET", "/api/boards"],
     ["POST", "/api/boards"],
@@ -64,23 +64,6 @@ describe("ログインと同意", () => {
       body: method === "POST" ? JSON.stringify({ templateId: "basic" }) : null,
     });
     expect(res.status).toBe(401);
-  });
-
-  test("利用規約に同意していなければ 403", async () => {
-    await db
-      .update(users)
-      .set({ termsAcceptedAt: null })
-      .where(eq(users.id, userId));
-    const res = await app.request("/api/boards", {
-      headers: await loginAs(userId),
-    });
-    expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({
-      error: {
-        code: "terms_not_accepted",
-        message: "利用規約に同意してください",
-      },
-    });
   });
 });
 

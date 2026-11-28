@@ -4,7 +4,6 @@ import * as z from "zod";
 import { updateNewsFeedSchema } from "@/lib/widgets/news";
 
 import { requireAuth } from "../middleware/require-auth";
-import { requireConsent } from "../middleware/require-consent";
 import { deleteNewsFeed, updateNewsFeed } from "../services/news";
 import { zValidator } from "../validator";
 import { widgetErrorResponse } from "./widget-errors";
@@ -17,9 +16,8 @@ const NOT_FOUND = "フィードが見つかりません";
 
 // ニュースのフィードの API（docs/api.md）。登録するのは /api/widgets/:widgetId/news-feeds
 const newsFeeds = new Hono()
-  // ログインしていて、利用規約に同意した人だけが使える
+  // ログインした人だけが使える
   .use(requireAuth)
-  .use(requireConsent)
   // 名前・表示するか・並び順を変える
   .patch(
     "/:feedId",

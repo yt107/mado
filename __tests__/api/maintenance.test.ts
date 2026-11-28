@@ -57,23 +57,16 @@ describe("POST /api/maintenance/cleanup", () => {
     expect(res.status).toBe(401);
   });
 
-  test("24時間たっても同意していないユーザーと、期限切れのセッション・一時的な値を消す", async () => {
+  test("期限切れのセッションと一時的な値を消す（ユーザーは消さない）", async () => {
     await db.insert(users).values([
-      // 25時間前に登録して、同意していない → 消す
+      // 同意した日時がない（同意の確認画面があったころに登録した）→ 今は消さない
       {
-        id: "stale",
-        name: "Stale",
-        email: "stale@example.com",
+        id: "legacy",
+        name: "Legacy",
+        email: "legacy@example.com",
         createdAt: hoursAgo(25),
       },
-      // 1時間前に登録して、まだ同意していない → 残す
-      {
-        id: "fresh",
-        name: "Fresh",
-        email: "fresh@example.com",
-        createdAt: hoursAgo(1),
-      },
-      // 前に登録して、同意した → 残す
+      // 登録して、同意した → 残す
       {
         id: "member",
         name: "Member",
@@ -117,10 +110,13 @@ describe("POST /api/maintenance/cleanup", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      deleted: { users: 1, sessions: 1, verifications: 1 },
+      deleted: { sessions: 1, verifications: 1 },
     });
     const remainingUsers = await db.select({ id: users.id }).from(users);
-    expect(remainingUsers.map((u) => u.id).sort()).toEqual(["fresh", "member"]);
+    expect(remainingUsers.map((u) => u.id).sort()).toEqual([
+      "legacy",
+      "member",
+    ]);
     expect(
       await db.query.sessions.findFirst({ where: eq(sessions.id, "s-valid") }),
     ).toBeDefined();

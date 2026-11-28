@@ -4,7 +4,6 @@ import * as z from "zod";
 import { createBoardSchema, placeWidgetSchema } from "@/lib/board/schema";
 
 import { requireAuth } from "../middleware/require-auth";
-import { requireConsent } from "../middleware/require-consent";
 import {
   createBoardFromTemplate,
   getBoardDetail,
@@ -19,9 +18,8 @@ const boardIdParamSchema = z.object({
 });
 
 const boards = new Hono()
-  // ログインしていて、利用規約に同意した人だけが使える
+  // ログインした人だけが使える
   .use(requireAuth)
-  .use(requireConsent)
   // 自分のボードの一覧（MVP では0件か1件）
   .get("/", async (c) => {
     return c.json({ boards: await listBoards(c.var.user.id) }, 200);

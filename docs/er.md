@@ -35,7 +35,7 @@ erDiagram
     text name "ユーザー名（Googleの表示名が初期値）"
     text email UK "Googleアカウントのメールアドレス"
     text image "プロフィール画像のURL"
-    timestamptz terms_accepted_at "利用規約に同意した日時。NULLなら確認画面へ"
+    timestamptz terms_accepted_at "利用規約に同意した日時（登録した日時）"
     timestamptz created_at "マイページの「登録日」"
   }
   accounts {
@@ -120,7 +120,7 @@ erDiagram
 | `created_at` / `updated_at` | 全テーブルに持つ。画面や処理で使うもの（`users.created_at`、`sessions.created_at`、`memos.updated_at`）だけ図に載せている |
 | Better Auth の内部用の列（Googleのトークン類、メールアドレスの確認状態、セッションのIPアドレス・ブラウザの情報など） | Better Auth が決める列で、アプリの設計の対象ではない。実装時に公式のスキーマに合わせる |
 
-Better Auth の標準のスキーマにない列は、`users.terms_accepted_at`。Better Auth の `additionalFields` で足し、`input: false` にして、ログインの仕組みからは書き込めないようにしている。
+Better Auth の標準のスキーマにない列は、`users.terms_accepted_at`。Better Auth の `additionalFields` で足し、`input: false` にして、ログインの画面などから送られた値では書き込めないようにしている。値は、登録のときに Better Auth の `databaseHooks` で入れる。
 
 ## 線の端の記号
 
@@ -176,8 +176,8 @@ Better Auth の標準のスキーマにない列は、`users.terms_accepted_at`�
 **ログインとアカウント**
 
 - `accounts`：`(provider_id, account_id)` に一意制約。1つのGoogleアカウントは、1人のユーザーにだけ紐づく
-- `users.terms_accepted_at` が NULL のユーザーは、初回ログインの確認画面（ユーザー名・利用規約への同意）に進ませ、同意するまでダッシュボードを使えないようにする
-- 確認画面で「キャンセルしてログアウト」を押したユーザーは、すぐに削除する（`accounts`・`sessions` もまとめて削除）。タブを閉じるなどして同意しないまま残ったユーザーは、次のログインで確認画面に戻す。登録から24時間たっても同意していないユーザーは、毎日の掃除で削除する
+- ログインの画面に「続行すると、利用規約に同意し、プライバシーポリシーを確認したものとみなします」と書き、「Google で続行」を押して登録したときに、`users.terms_accepted_at` に登録した日時を入れる。同意の確認画面はない
+- 同意の確認画面があったころに登録して、同意しなかったユーザーだけ、`users.terms_accepted_at` が NULL。止めたり消したりはしない
 - ログイン状態の期限は30日。使っているあいだは、1日ごとに30日先まで延ばす（表示用の端末が、表示している途中でログアウトしないように）
 - 退会は、本人確認（Googleでの再ログイン）の直後だけ受け付ける。ログインしたばかりかどうかは `sessions.created_at` で判断する
 - 期限が切れた `sessions` と `verifications` は、毎日の掃除で削除する

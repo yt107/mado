@@ -8,10 +8,13 @@ import { cx } from "@/lib/cx";
 export function GoogleSignInButton({
   className,
   disabled = false,
+  describedBy,
 }: {
   className?: string;
   // Google のログインが使えないブラウザでは、押せないようにする
   disabled?: boolean;
+  // ボタンの説明の要素の id（押すと利用規約に同意したとみなす、の案内）
+  describedBy?: string;
 }) {
   // Google の画面へ移るまでのあいだ、2回押せないようにする
   const [pending, setPending] = useState(false);
@@ -36,6 +39,7 @@ export function GoogleSignInButton({
       type="button"
       onClick={signIn}
       disabled={pending || disabled}
+      aria-describedby={describedBy}
       className={cx(
         "flex h-12 w-full items-center justify-center gap-3 rounded-[10px] border border-black/10 bg-white font-medium text-[#1f1f1f] transition-opacity hover:bg-[#f7f7f7] disabled:opacity-60",
         className,

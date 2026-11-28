@@ -4,7 +4,6 @@ import * as z from "zod";
 import { updateCalendarSubscriptionSchema } from "@/lib/widgets/calendar";
 
 import { requireAuth } from "../middleware/require-auth";
-import { requireConsent } from "../middleware/require-consent";
 import {
   deleteCalendarSubscription,
   updateCalendarSubscription,
@@ -20,9 +19,8 @@ const NOT_FOUND = "カレンダーが見つかりません";
 
 // カレンダーの購読先の API（docs/api.md）。登録するのは /api/widgets/:widgetId/calendar-subscriptions
 const calendarSubscriptions = new Hono()
-  // ログインしていて、利用規約に同意した人だけが使える
+  // ログインした人だけが使える
   .use(requireAuth)
-  .use(requireConsent)
   // 名前と色を変える
   .patch(
     "/:subscriptionId",
