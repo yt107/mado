@@ -438,6 +438,21 @@ export function Editor({ board, user }: Props) {
     );
   }
 
+  function toggleFeed(widgetId: string, feedId: string, visible: boolean) {
+    updateWidget(widgetId, (w) => ({
+      ...w,
+      newsFeeds: (w.newsFeeds ?? []).map((f) =>
+        f.id === feedId ? { ...f, visible } : f,
+      ),
+    }));
+    saver.run(() =>
+      api["news-feeds"][":feedId"].$patch({
+        param: { feedId },
+        json: { visible },
+      }),
+    );
+  }
+
   function moveFeed(widgetId: string, feedId: string, toIndex: number) {
     updateWidget(widgetId, (w) => {
       const sorted = (w.newsFeeds ?? []).toSorted(
@@ -634,9 +649,13 @@ export function Editor({ board, user }: Props) {
             settings={widget.settings}
             feeds={widget.newsFeeds ?? []}
             sizeLabel={sizeLabel}
+            width={settingsPlacement?.w ?? null}
             onSettingsChange={(settings) => updateSettings(widget.id, settings)}
             onAdd={(url) => addFeed(widget.id, url)}
             onRename={(feedId, title) => renameFeed(widget.id, feedId, title)}
+            onToggle={(feedId, visible) =>
+              toggleFeed(widget.id, feedId, visible)
+            }
             onMove={(feedId, toIndex) => moveFeed(widget.id, feedId, toIndex)}
             onDelete={(feedId) => deleteFeed(widget.id, feedId)}
             onAnnounce={announce}

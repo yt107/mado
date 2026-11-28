@@ -13,7 +13,7 @@ import {
   calendarEventsQuerySchema,
   createCalendarSubscriptionSchema,
 } from "@/lib/widgets/calendar";
-import { createNewsFeedSchema } from "@/lib/widgets/news";
+import { createNewsFeedSchema, newsItemsQuerySchema } from "@/lib/widgets/news";
 
 import { requireAuth } from "../middleware/require-auth";
 import { requireConsent } from "../middleware/require-consent";
@@ -180,10 +180,12 @@ const widgets = new Hono()
   .get(
     "/:widgetId/news-items",
     zValidator("param", widgetParamSchema),
+    zValidator("query", newsItemsQuerySchema),
     async (c) => {
       const result = await getNewsItems(
         c.var.user.id,
         c.req.valid("param").widgetId,
+        c.req.valid("query").feeds,
       );
       return result.ok
         ? c.json(result.value, 200)

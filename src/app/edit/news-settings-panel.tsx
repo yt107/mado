@@ -1,6 +1,9 @@
 "use client";
 
 import {
+  ExternalLink,
+  Eye,
+  EyeOff,
   GripVertical,
   Info,
   LoaderCircle,
@@ -13,10 +16,11 @@ import { useId, useState } from "react";
 
 import { cx } from "@/lib/cx";
 import {
-  feedColor,
   NEWS_FEEDS_MAX,
   NEWS_PRESETS,
+  NEWS_RSS_GUIDES,
   NEWS_TITLE_MAX,
+  newsColumns,
   readNewsSettings,
   type NewsFeed,
   type NewsSettings,
@@ -36,10 +40,13 @@ type Props = {
   settings: Record<string, unknown>;
   feeds: NewsFeed[];
   sizeLabel: string;
+  // 今の表示先での横のマスの数（置いていなければ null）
+  width: number | null;
   onSettingsChange: (settings: NewsSettings) => void;
   // 登録できなかったときは、その理由を返す
   onAdd: (url: string) => Promise<string | null>;
   onRename: (feedId: string, title: string) => void;
+  onToggle: (feedId: string, visible: boolean) => void;
   onMove: (feedId: string, toIndex: number) => void;
   onDelete: (feedId: string) => void;
   onAnnounce: (message: string) => void;
@@ -60,9 +67,11 @@ export function NewsSettingsPanel({
   settings,
   feeds,
   sizeLabel,
+  width,
   onSettingsChange,
   onAdd,
   onRename,
+  onToggle,
   onMove,
   onDelete,
   onAnnounce,
@@ -101,6 +110,10 @@ export function NewsSettingsPanel({
   const presets = NEWS_PRESETS.filter(
     (preset) => !feeds.some((feed) => feed.feedUrl === preset.url),
   );
+  // 今の大きさで列に出るフィード（置いていなければ、表示するものは全部出る扱い）
+  const shownIds = new Set(
+    newsColumns(feeds, width ?? NEWS_FEEDS_MAX).map((feed) => feed.id),
+  );
 
   return (
     <PanelShell
@@ -121,6 +134,10 @@ export function NewsSettingsPanel({
             </span>
           )}
         </div>
+        <p className="mb-2 text-xs leading-relaxed text-ink-3">
+          表示するフィードを上から順に、横1マスにつき1つずつ並べます
+          {width !== null && `（今の大きさでは${width}つまで）`}
+        </p>
         {feeds.length === 0 ? (
           <p className="text-xs text-ink-3">まだありません</p>
         ) : (
@@ -143,12 +160,12 @@ export function NewsSettingsPanel({
                 >
                   <GripVertical aria-hidden className="size-4" />
                 </button>
-                <span
-                  aria-hidden
-                  className="size-2.5 shrink-0 rounded-[3px]"
-                  style={{ backgroundColor: feedColor(index) }}
-                />
-                <div className="min-w-0 flex-1 pl-1">
+                <div
+                  className={cx(
+                    "min-w-0 flex-1",
+                    !feed.visible && "text-ink-3",
+                  )}
+                >
                   <input
                     type="text"
                     defaultValue={feed.title}
@@ -170,16 +187,41 @@ export function NewsSettingsPanel({
                     className="w-full rounded-md bg-transparent px-1 py-0.5 font-medium"
                   />
                   <p className="truncate px-1 text-[0.6875rem] text-ink-3">
-                    {feed.lastError ? (
+                    {!feed.visible ? (
+                      "非表示"
+                    ) : feed.lastError ? (
                       <FetchStatusText
                         lastFetchedAt={feed.lastFetchedAt}
                         lastError={feed.lastError}
                       />
-                    ) : (
+                    ) : shownIds.has(feed.id) ? (
                       hostOf(feed.feedUrl)
+                    ) : (
+                      "今の大きさでは出ません（横のマスが足りません）"
                     )}
                   </p>
                 </div>
+                <button
+                  type="button"
+                  aria-pressed={feed.visible}
+                  aria-label={`「${feed.title}」を表示する`}
+                  title={feed.visible ? "表示中" : "非表示"}
+                  onClick={() => {
+                    onToggle(feed.id, !feed.visible);
+                    onAnnounce(
+                      feed.visible
+                        ? `「${feed.title}」を非表示にしました`
+                        : `「${feed.title}」を表示にしました`,
+                    );
+                  }}
+                  className="grid size-7 shrink-0 place-items-center rounded-md text-ink-3 hover:bg-raised hover:text-ink"
+                >
+                  {feed.visible ? (
+                    <Eye aria-hidden className="size-3.5" />
+                  ) : (
+                    <EyeOff aria-hidden className="size-3.5" />
+                  )}
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -273,6 +315,23 @@ export function NewsSettingsPanel({
             ))}
           </div>
         )}
+        <p className="mt-2 text-xs leading-relaxed text-ink-3">
+          ほかのニュースは、サイトの RSS のページで URL
+          をコピーして、上に貼ってください（利用条件は各サイトで確かめてください）：
+          {NEWS_RSS_GUIDES.map((guide) => (
+            <a
+              key={guide.url}
+              href={guide.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-2 inline-flex items-center gap-0.5 text-ink-2 underline underline-offset-2 hover:text-ink"
+            >
+              {guide.label}
+              <ExternalLink aria-hidden className="size-3" />
+              <span className="sr-only">（新しいタブで開く）</span>
+            </a>
+          ))}
+        </p>
       </section>
 
       <section className="flex flex-col gap-3">
@@ -297,11 +356,6 @@ export function NewsSettingsPanel({
           checked={s.autoRotate}
           onChange={(autoRotate) => onSettingsChange({ ...s, autoRotate })}
         />
-        <Switch
-          label="同じ記事をまとめる"
-          checked={s.dedupe}
-          onChange={(dedupe) => onSettingsChange({ ...s, dedupe })}
-        />
       </section>
 
       <RefreshSelect
@@ -313,7 +367,7 @@ export function NewsSettingsPanel({
 
       <p className="flex gap-1.5 text-xs leading-relaxed text-ink-3">
         <Info aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-        表示モードでは、見出しを押しても記事は開きません。
+        表示モードでは、見出しを押すと元の記事を新しいタブで開きます。
       </p>
     </PanelShell>
   );

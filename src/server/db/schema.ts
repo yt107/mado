@@ -182,6 +182,8 @@ export const newsFeeds = pgTable(
     title: text("title").notNull(),
     feedUrl: text("feed_url").notNull(),
     sortOrder: integer("sort_order").notNull(),
+    // ニュースのウィジェットに出すか（登録したまま隠せる）
+    visible: boolean("visible").notNull().default(true),
     lastFetchedAt: timestamp("last_fetched_at", { withTimezone: true }),
     lastError: text("last_error"),
     ...timestamps,

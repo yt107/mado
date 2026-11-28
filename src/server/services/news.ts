@@ -1,8 +1,9 @@
-import { and, asc, eq, max } from "drizzle-orm";
+import { and, asc, eq, inArray, max } from "drizzle-orm";
 import type * as z from "zod";
 
 import {
   NEWS_FEEDS_MAX,
+  NEWS_ITEMS_PER_FEED,
   NEWS_TITLE_MAX,
   newsFeedSchema,
   type NewsFeed,
@@ -36,14 +37,12 @@ import {
 const FEED_MAX_BYTES = 2 * 1024 * 1024;
 const FEED_ACCEPT =
   "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.9, text/html;q=0.8, */*;q=0.5";
-// 返す記事の数の上限（全部のフィードを合わせて）
-const ITEMS_MAX = 100;
-
 const feedColumns = {
   id: newsFeeds.id,
   title: newsFeeds.title,
   feedUrl: newsFeeds.feedUrl,
   sortOrder: newsFeeds.sortOrder,
+  visible: newsFeeds.visible,
   lastFetchedAt: newsFeeds.lastFetchedAt,
   lastError: newsFeeds.lastError,
 };
@@ -53,6 +52,7 @@ type FeedRow = {
   title: string;
   feedUrl: string;
   sortOrder: number;
+  visible: boolean;
   lastFetchedAt: Date | null;
   lastError: string | null;
 };
@@ -162,7 +162,7 @@ async function lockOwnedFeed(tx: Tx, userId: string, feedId: string) {
   return row ?? null;
 }
 
-// 名前と並び順を変える。並び順は「何番目（0から）に動かすか」で受け取り、ほかも 0, 1, 2… に振り直す
+// 名前・表示するか・並び順を変える。並び順は「何番目（0から）に動かすか」で受け取り、ほかも 0, 1, 2… に振り直す
 export async function updateNewsFeed(
   userId: string,
   feedId: string,
@@ -172,10 +172,10 @@ export async function updateNewsFeed(
     const feed = await lockOwnedFeed(tx, userId, feedId);
     if (!feed) return fail({ code: "not_found" });
 
-    if (patch.title !== undefined) {
+    if (patch.title !== undefined || patch.visible !== undefined) {
       await tx
         .update(newsFeeds)
-        .set({ title: patch.title })
+        .set({ title: patch.title, visible: patch.visible })
         .where(eq(newsFeeds.id, feedId));
     }
     if (patch.sortOrder !== undefined) {
@@ -223,10 +223,29 @@ export async function deleteNewsFeed(
   });
 }
 
-// 登録したフィードを全部読み、記事を新しい順に返す。読めなかったフィードは理由を残す
+// 新しい順。日時のない記事は、フィードに書かれた順のまま後ろに置く
+function newestFirst(items: NewsItem[]): NewsItem[] {
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => {
+      const at = a.item.publishedAt;
+      const bt = b.item.publishedAt;
+      if (at && bt) return bt.localeCompare(at);
+      if (at) return -1;
+      if (bt) return 1;
+      return a.index - b.index;
+    })
+    .map(({ item }) => item);
+}
+
+// 表示するフィードを並び順に読み、フィードごとに新しい記事を返す。隠したフィードは読まない。
+// 読めなかったフィードは理由を残す
+// feedIds を渡したら、そのフィードを読む（ほかのウィジェットのものは無視する）。
+// 渡さなければ、表示にしているフィードを読む（feedIds を送らない、前のバージョンの画面のため）
 export async function getNewsItems(
   userId: string,
   widgetId: string,
+  feedIds?: string[],
 ): Promise<Result<NewsItemsResponse>> {
   const widget = await findOwnedWidget(userId, widgetId);
   if (!widget) return fail({ code: "not_found" });
@@ -235,7 +254,12 @@ export async function getNewsItems(
   const rows = await db
     .select(feedColumns)
     .from(newsFeeds)
-    .where(eq(newsFeeds.widgetId, widgetId))
+    .where(
+      and(
+        eq(newsFeeds.widgetId, widgetId),
+        feedIds ? inArray(newsFeeds.id, feedIds) : eq(newsFeeds.visible, true),
+      ),
+    )
     .orderBy(asc(newsFeeds.sortOrder));
 
   const results = await Promise.all(
@@ -250,13 +274,15 @@ export async function getNewsItems(
         await db.update(newsFeeds).set(status).where(eq(newsFeeds.id, row.id));
         // 同じリンクの記事が1つのフィードに2回あっても、ID が重ならないようにする
         const links = new Set<string>();
-        const items: NewsItem[] = parsed.entries
-          .filter((entry) => !links.has(entry.link) && links.add(entry.link))
-          .map((entry) => ({
-            id: `${row.id}:${entry.link}`,
-            feedId: row.id,
-            ...entry,
-          }));
+        const items = newestFirst(
+          parsed.entries
+            .filter((entry) => !links.has(entry.link) && links.add(entry.link))
+            .map((entry) => ({
+              id: `${row.id}:${entry.link}`,
+              feedId: row.id,
+              ...entry,
+            })),
+        ).slice(0, NEWS_ITEMS_PER_FEED);
         return { feed: toFeed({ ...row, ...status }), items };
       } catch (error) {
         if (!isFetchFailure(error)) throw error;
@@ -270,20 +296,8 @@ export async function getNewsItems(
     }),
   );
 
-  // 新しい順。日時のない記事は、フィードの並び順のまま後ろに置く
-  const items = results
-    .flatMap((result) => result.items)
-    .map((item, index) => ({ item, index }))
-    .sort((a, b) => {
-      const at = a.item.publishedAt;
-      const bt = b.item.publishedAt;
-      if (at && bt) return bt.localeCompare(at);
-      if (at) return -1;
-      if (bt) return 1;
-      return a.index - b.index;
-    })
-    .map(({ item }) => item)
-    .slice(0, ITEMS_MAX);
-
-  return ok({ feeds: results.map((result) => result.feed), items });
+  return ok({
+    feeds: results.map((result) => result.feed),
+    items: results.flatMap((result) => result.items),
+  });
 }

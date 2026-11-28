@@ -1,0 +1,1 @@
+ALTER TABLE "news_feeds" ADD COLUMN "visible" boolean DEFAULT true NOT NULL;

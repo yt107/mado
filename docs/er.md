@@ -105,6 +105,7 @@ erDiagram
     text title
     text feed_url
     integer sort_order "ドラッグで並べ替え"
+    boolean visible "ウィジェットに出すか（登録したまま隠せる）"
     timestamptz last_fetched_at "「10:28 更新」の表示に使う"
     text last_error "「取得できません」の表示に使う"
   }
@@ -170,6 +171,7 @@ Better Auth の標準のスキーマにない列は、`users.terms_accepted_at`�
 - ウィジェットを削除する操作はない。`widgets` のレコードは、ボードやユーザーを削除したときだけ一緒に消える（ON DELETE CASCADE）。中身を消したいときは、設定パネルで項目や購読先を1つずつ削除する
 - 配置の重なりや、グリッドからはみ出していないかは、APIのサービス層でチェックする
 - `todo_items` / `memos` / `calendar_subscriptions` / `news_feeds` は、種類が合うウィジェットにだけ紐づける（サービス層でチェックする）
+- `news_feeds.visible` が false のフィードは、登録したまま、ウィジェットに出さない（記事も読まない）。出すフィードは、`sort_order` の順に、ウィジェットの横のマスの数まで並べる（1マスに1列）。横のマスの数は表示先ごとに違うので、DBには持たない
 
 **ログインとアカウント**
 

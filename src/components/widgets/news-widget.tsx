@@ -1,6 +1,6 @@
 "use client";
 
-import { Newspaper, Rss } from "lucide-react";
+import { EyeOff, Newspaper, Rss, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { api } from "@/lib/api-client";
@@ -10,10 +10,9 @@ import { cx } from "@/lib/cx";
 import { useNow } from "@/lib/hooks/use-now";
 import { useRemoteData, type RemoteData } from "@/lib/hooks/use-remote-data";
 import {
-  dedupeItems,
-  feedColor,
   itemsOfFeeds,
   NEWS_ROTATE_MS,
+  newsColumns,
   newsCount,
   publishedLabel,
   readNewsSettings,
@@ -28,16 +27,17 @@ import { useSampleMode } from "./sample-mode";
 
 type Size = { w: number; h: number };
 
-type ColoredFeed = NewsFeed & { color: string };
-
 // ニュース・RSS（画面設計「ニュース・RSS（サイズ別・状態別）」）。
-// 登録したフィードの見出しを、新しい順にまとめて出す。記事は、サーバーがフィードを読んで返す
+// 表示するフィードを、横1マスにつき1列で並べる。記事は、サーバーがフィードを読んで返す。
+// openLinks（表示モード）なら、見出しを押すと元の記事を新しいタブで開く
 export function NewsWidget({
   widget,
   size,
+  openLinks = false,
 }: {
   widget: BoardWidget;
   size: Size;
+  openLinks?: boolean;
 }) {
   const settings = readNewsSettings(widget.settings);
   const now = useNow();
@@ -51,13 +51,23 @@ export function NewsWidget({
       size={size}
     />
   ) : (
-    <LiveNews widget={widget} settings={settings} now={now} size={size} />
+    <LiveNews
+      widget={widget}
+      settings={settings}
+      now={now}
+      size={size}
+      openLinks={openLinks}
+    />
   );
 }
 
-async function loadItems(widgetId: string): Promise<NewsItemsResponse> {
+async function loadItems(
+  widgetId: string,
+  feedIds: string[],
+): Promise<NewsItemsResponse> {
   const res = await api.widgets[":widgetId"]["news-items"].$get({
     param: { widgetId },
+    query: { feeds: feedIds.join(",") },
   });
   if (!res.ok) {
     throw new Error("記事を読み込めませんでした");
@@ -70,50 +80,87 @@ function LiveNews({
   settings,
   now,
   size,
+  openLinks,
 }: {
   widget: BoardWidget;
   settings: NewsSettings;
   now: Date;
   size: Size;
+  openLinks: boolean;
 }) {
   const feeds = widget.newsFeeds ?? [];
-  // フィードを足したり消したりしたら、すぐ読み直す
-  const key = feeds.length > 0 ? feeds.map((feed) => feed.id).join(",") : null;
+  const visible = feeds.filter((feed) => feed.visible);
+  // 表示するフィードが変わったら（足す、消す、隠す、出す）、すぐ読み直す。並べ替えだけなら読み直さない。
+  // 読むフィードは画面から伝える（表示・非表示の保存が終わる前に読み直しても、記事が欠けないように）
+  const visibleIds = visible.map((feed) => feed.id).toSorted();
+  const key = visibleIds.length > 0 ? visibleIds.join(",") : null;
   const state = useRemoteData(
     key,
-    () => loadItems(widget.id),
+    () => loadItems(widget.id, visibleIds),
     settings.refreshMinutes * 60_000,
   );
 
   if (feeds.length === 0) {
-    return <EmptyFeeds />;
+    return (
+      <EmptyFeeds
+        icon={Rss}
+        title="フィードが未登録です"
+        message="編集モードでこのウィジェットの設定を開き、RSS / Atom の URL を追加してください"
+      />
+    );
   }
+  if (visible.length === 0) {
+    return (
+      <EmptyFeeds
+        icon={EyeOff}
+        title="表示するフィードがありません"
+        message="編集モードでこのウィジェットの設定を開き、出したいフィードを表示にしてください"
+      />
+    );
+  }
+
+  // フィードの名前と並び順は、ボードの値（編集ですぐ変わる）を使う。
+  // 読めたかどうかは、読み直した結果を使う（全体が読めなかったときは、どの列も読めなかったことにする）
+  const fetched = new Map(state.data?.feeds.map((feed) => [feed.id, feed]));
+  const failed = state.data === null ? state.error : null;
+  const shown = visible.map((feed) => ({
+    ...feed,
+    lastError: failed ?? fetched.get(feed.id)?.lastError ?? null,
+  }));
   return (
     <NewsView
       settings={settings}
-      // フィードの名前と並び順は、ボードの値（編集ですぐ変わる）を使う。
       // 記事も、ボードにあるフィードのものだけを出す（消したフィードの記事が残らないように）
-      data={{ feeds, items: itemsOfFeeds(state.data?.items ?? [], feeds) }}
+      data={{
+        feeds: shown,
+        items: itemsOfFeeds(state.data?.items ?? [], shown),
+      }}
       now={now}
       size={size}
       state={state}
+      openLinks={openLinks}
     />
   );
 }
 
-function EmptyFeeds() {
+function EmptyFeeds({
+  icon: Icon,
+  title,
+  message,
+}: {
+  icon: LucideIcon;
+  title: string;
+  message: string;
+}) {
   return (
     <div className="flex h-full flex-col">
       <Header />
       <div className="flex flex-1 flex-col items-center justify-center gap-[0.6em] text-center">
         <span className="grid size-[2.6em] place-items-center rounded-full bg-raised text-ink-3">
-          <Rss aria-hidden className="size-[1.2em]" />
+          <Icon aria-hidden className="size-[1.2em]" />
         </span>
-        <p className="font-bold">フィードが未登録です</p>
-        <p className="text-[0.85em] leading-relaxed text-ink-3">
-          編集モードでこのウィジェットの設定を開き、RSS / Atom の URL
-          を追加してください
-        </p>
+        <p className="font-bold">{title}</p>
+        <p className="text-[0.85em] leading-relaxed text-ink-3">{message}</p>
       </div>
     </div>
   );
@@ -137,53 +184,60 @@ type ViewProps = {
   now: Date;
   size: Size;
   state?: RemoteData<NewsItemsResponse>;
+  openLinks?: boolean;
 };
 
-export function NewsView({ settings, data, now, size, state }: ViewProps) {
-  // フィードの色は、並び順の何番目かで決める（設定パネルの印と同じ色）
-  const feeds = new Map(
-    data.feeds
-      .toSorted((a, b) => a.sortOrder - b.sortOrder)
-      .map((feed, index) => [feed.id, { ...feed, color: feedColor(index) }]),
-  );
-  const all = settings.dedupe ? dedupeItems(data.items) : data.items;
-  const items = all.slice(0, newsCount(settings.count, size.w, size.h));
+export function NewsView({
+  settings,
+  data,
+  now,
+  size,
+  state,
+  openLinks = false,
+}: ViewProps) {
+  const columns = newsColumns(data.feeds, size.w);
+  const count = newsCount(settings.count, size.w, size.h);
+  const itemsOf = (feed: NewsFeed) =>
+    data.items.filter((item) => item.feedId === feed.id).slice(0, count);
+  const [single] = columns;
 
   let body;
   if (state?.loading) {
     body = <Skeleton />;
-  } else if (items.length === 0) {
+  } else if (columns.length === 1 && single) {
     body = (
-      <p className="mt-[0.8em] text-[0.9em] text-ink-3">
-        {state?.error ? "記事を読み込めませんでした" : "記事がありません"}
-      </p>
-    );
-  } else if (size.w === 1 && size.h === 1) {
-    body = (
-      <Rotating
-        items={items}
-        feeds={feeds}
+      <SingleColumn
+        feed={single}
+        items={itemsOf(single)}
+        settings={settings}
         now={now}
-        rotate={settings.autoRotate}
+        size={size}
+        openLinks={openLinks}
       />
     );
-  } else if (
-    size.w >= 2 &&
-    size.h >= 2 &&
-    settings.showImages &&
-    items[0]?.image
-  ) {
-    body = <WithTopStory items={items} feeds={feeds} now={now} />;
+  } else if (columns.length > 1) {
+    body = (
+      <div
+        className="grid min-h-0 flex-1"
+        style={{
+          gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
+        }}
+      >
+        {columns.map((feed) => (
+          <FeedColumn
+            key={feed.id}
+            feed={feed}
+            items={itemsOf(feed)}
+            now={now}
+            // 1行の高さのときは、見出しを1行にする（画面設計：2×1 は3件・1行）
+            singleLine={size.h === 1}
+            openLinks={openLinks}
+          />
+        ))}
+      </div>
+    );
   } else {
-    body = (
-      <ItemList
-        items={items}
-        feeds={feeds}
-        now={now}
-        // 1行の高さのときは、見出しを1行にする（画面設計：2×1 は3件・1行）
-        singleLine={size.h === 1}
-      />
-    );
+    body = <EmptyText>記事がありません</EmptyText>;
   }
 
   return (
@@ -194,61 +248,178 @@ export function NewsView({ settings, data, now, size, state }: ViewProps) {
   );
 }
 
-function Source({
+function EmptyText({ children }: { children: string }) {
+  return <p className="mt-[0.2em] text-[0.9em] text-ink-3">{children}</p>;
+}
+
+function emptyMessage(feed: NewsFeed) {
+  return feed.lastError ? "記事を読み込めませんでした" : "記事がありません";
+}
+
+// 列が1つのとき：1×1 は見出しの切り替え、2×2 以上で画像があれば画像つきのトップ記事、ほかは見出しの一覧
+function SingleColumn({
+  feed,
+  items,
+  settings,
+  now,
+  size,
+  openLinks,
+}: {
+  feed: NewsFeed;
+  items: NewsItem[];
+  settings: NewsSettings;
+  now: Date;
+  size: Size;
+  openLinks: boolean;
+}) {
+  if (items.length === 0) {
+    return <EmptyText>{emptyMessage(feed)}</EmptyText>;
+  }
+  if (size.w === 1 && size.h === 1) {
+    return (
+      <Rotating
+        items={items}
+        feed={feed}
+        now={now}
+        rotate={settings.autoRotate}
+        openLinks={openLinks}
+      />
+    );
+  }
+  if (size.w >= 2 && size.h >= 2 && settings.showImages && items[0]?.image) {
+    return (
+      <WithTopStory items={items} feed={feed} now={now} openLinks={openLinks} />
+    );
+  }
+  return (
+    <ItemList
+      items={items}
+      feed={feed}
+      now={now}
+      singleLine={size.h === 1}
+      openLinks={openLinks}
+    />
+  );
+}
+
+// 列が2つ以上のとき：列の上にフィードの名前を出し、その下に見出しを並べる
+function FeedColumn({
+  feed,
+  items,
+  now,
+  singleLine,
+  openLinks,
+}: {
+  feed: NewsFeed;
+  items: NewsItem[];
+  now: Date;
+  singleLine: boolean;
+  openLinks: boolean;
+}) {
+  return (
+    <section
+      aria-label={feed.title}
+      className="flex min-w-0 flex-col border-l border-line pl-[0.9em] not-first:ml-[0.9em] first:border-l-0 first:pl-0"
+    >
+      <p className="mb-[0.4em] truncate text-[0.8em] font-bold text-ink-2">
+        {feed.title}
+      </p>
+      {items.length === 0 ? (
+        <EmptyText>{emptyMessage(feed)}</EmptyText>
+      ) : (
+        <ItemList
+          items={items}
+          now={now}
+          singleLine={singleLine}
+          openLinks={openLinks}
+        />
+      )}
+    </section>
+  );
+}
+
+// 記事の上の小さい行。列の上にフィードの名前を出しているときは、時刻だけ
+function Meta({
   feed,
   publishedAt,
   now,
 }: {
-  feed: ColoredFeed | undefined;
+  feed?: NewsFeed;
   publishedAt: string | null;
   now: Date;
 }) {
+  if (!feed && !publishedAt) return null;
   return (
-    <p className="flex min-w-0 items-center gap-[0.4em] text-[0.75em] text-ink-3">
-      <span
-        aria-hidden
-        className="size-[0.6em] shrink-0 rounded-[0.15em]"
-        style={{ backgroundColor: feed?.color ?? feedColor(0) }}
-      />
-      <span className="truncate">{feed?.title ?? "ニュース"}</span>
+    <p className="flex min-w-0 items-center text-[0.75em] text-ink-3">
+      {feed && <span className="truncate">{feed.title}</span>}
       {publishedAt && (
-        <span className="shrink-0">・{publishedLabel(publishedAt, now)}</span>
+        <span className="shrink-0">
+          {feed && "・"}
+          {publishedLabel(publishedAt, now)}
+        </span>
       )}
+    </p>
+  );
+}
+
+// 見出し。表示モードでは、元の記事へのリンクにする。
+// リンクの当たる範囲は、記事のまとまり全体（relative を付けた親）に広げる
+function Headline({
+  item,
+  openLinks,
+  className,
+}: {
+  item: NewsItem;
+  openLinks: boolean;
+  className: string;
+}) {
+  if (!openLinks) {
+    return <p className={className}>{item.title}</p>;
+  }
+  return (
+    <p className={className}>
+      <a
+        href={item.link}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="after:absolute after:inset-0 hover:underline"
+      >
+        {item.title}
+        <span className="sr-only">（新しいタブで開く）</span>
+      </a>
     </p>
   );
 }
 
 function ItemList({
   items,
-  feeds,
+  feed,
   now,
   singleLine = false,
+  openLinks,
 }: {
   items: NewsItem[];
-  feeds: Map<string, ColoredFeed>;
+  feed?: NewsFeed;
   now: Date;
   singleLine?: boolean;
+  openLinks: boolean;
 }) {
   return (
     <ul className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {items.map((item) => (
         <li
           key={item.id}
-          className="border-b border-line py-[0.55em] first:pt-0 last:border-b-0"
+          className="relative border-b border-line py-[0.55em] first:pt-0 last:border-b-0"
         >
-          <Source
-            feed={feeds.get(item.feedId)}
-            publishedAt={item.publishedAt}
-            now={now}
-          />
-          <p
+          <Meta feed={feed} publishedAt={item.publishedAt} now={now} />
+          <Headline
+            item={item}
+            openLinks={openLinks}
             className={cx(
               "mt-[0.2em] font-medium",
               singleLine ? "truncate" : "line-clamp-2",
             )}
-          >
-            {item.title}
-          </p>
+          />
         </li>
       ))}
     </ul>
@@ -258,18 +429,20 @@ function ItemList({
 // 2×2 以上で画像があるとき：画像つきのトップ記事と、ほかの見出し
 function WithTopStory({
   items,
-  feeds,
+  feed,
   now,
+  openLinks,
 }: {
   items: NewsItem[];
-  feeds: Map<string, ColoredFeed>;
+  feed: NewsFeed;
   now: Date;
+  openLinks: boolean;
 }) {
   const [top, ...rest] = items;
   if (!top) return null;
   return (
     <div className="flex min-h-0 flex-1 gap-[1.2em]">
-      <div className="flex w-1/2 min-w-0 flex-col">
+      <div className="relative flex w-1/2 min-w-0 flex-col">
         {top.image && (
           // 外のサイトの画像。送り元のページを相手に伝えない
           // eslint-disable-next-line @next/next/no-img-element
@@ -282,15 +455,13 @@ function WithTopStory({
           />
         )}
         <div className="mt-[0.7em]">
-          <Source
-            feed={feeds.get(top.feedId)}
-            publishedAt={top.publishedAt}
-            now={now}
-          />
+          <Meta feed={feed} publishedAt={top.publishedAt} now={now} />
         </div>
-        <p className="mt-[0.3em] line-clamp-3 text-[1.25em] leading-snug font-bold">
-          {top.title}
-        </p>
+        <Headline
+          item={top}
+          openLinks={openLinks}
+          className="mt-[0.3em] line-clamp-3 text-[1.25em] leading-snug font-bold"
+        />
         {top.summary && (
           <p className="mt-[0.4em] line-clamp-3 text-[0.85em] leading-relaxed text-ink-3">
             {top.summary}
@@ -298,7 +469,7 @@ function WithTopStory({
         )}
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <ItemList items={rest} feeds={feeds} now={now} />
+        <ItemList items={rest} feed={feed} now={now} openLinks={openLinks} />
       </div>
     </div>
   );
@@ -307,14 +478,16 @@ function WithTopStory({
 // 1×1：見出しを1件ずつ、10秒ごとに切り替える
 function Rotating({
   items,
-  feeds,
+  feed,
   now,
   rotate,
+  openLinks,
 }: {
   items: NewsItem[];
-  feeds: Map<string, ColoredFeed>;
+  feed: NewsFeed;
   now: Date;
   rotate: boolean;
+  openLinks: boolean;
 }) {
   const [index, setIndex] = useState(0);
   useEffect(() => {
@@ -330,18 +503,15 @@ function Rotating({
   const item = items[position];
   if (!item) return null;
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <Source
-        feed={feeds.get(item.feedId)}
-        publishedAt={item.publishedAt}
-        now={now}
-      />
-      <p
-        aria-live="off"
-        className="mt-[0.3em] line-clamp-3 text-[1.25em] leading-snug font-bold"
-      >
-        {item.title}
-      </p>
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <Meta feed={feed} publishedAt={item.publishedAt} now={now} />
+      <div aria-live="off">
+        <Headline
+          item={item}
+          openLinks={openLinks}
+          className="mt-[0.3em] line-clamp-3 text-[1.25em] leading-snug font-bold"
+        />
+      </div>
       {rotate && items.length > 1 && (
         <div aria-hidden className="mt-auto flex items-center gap-[0.3em]">
           {items.map((other, i) => (

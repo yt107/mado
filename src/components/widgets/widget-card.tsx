@@ -45,7 +45,7 @@ function toneOf(widget: BoardWidget) {
 type Props = {
   widget: BoardWidget;
   placement: Placement;
-  // 表示モードでは、ToDo のチェックだけができる
+  // 表示モード。ToDo のチェックと、ニュースの見出しのリンクだけが使える
   interactive?: boolean;
 };
 
@@ -109,7 +109,9 @@ function WidgetContent({
     case "calendar":
       return <CalendarWidget widget={widget} size={cells} />;
     case "news":
-      return <NewsWidget widget={widget} size={cells} />;
+      return (
+        <NewsWidget widget={widget} size={cells} openLinks={interactive} />
+      );
     case "todo":
       return <TodoWidget widget={widget} interactive={interactive} />;
     case "memo":

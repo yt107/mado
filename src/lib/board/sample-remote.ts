@@ -113,46 +113,52 @@ const SAMPLE_FEEDS: NewsFeed[] = [
   title,
   feedUrl: "https://example.com/feed",
   sortOrder,
+  visible: true,
   ...status,
 }));
 
+// フィードごとの見出しと、何分前の記事か。列に並べるので、どのフィードにも数件ずつ置く
+const SAMPLE_HEADLINES: Record<string, [string, number][]> = {
+  news: [
+    ["各地で紅葉が見頃に 週末は行楽日和の予想", 12],
+    ["来週は寒気の影響で各地の気温が下がる見込み", 95],
+    ["年末年始の帰省ラッシュ、ピークは12月29日ごろ", 160],
+    ["駅前の再開発で新しい図書館が来春オープン", 240],
+    ["インフルエンザの流行入り 早めの予防接種を", 330],
+  ],
+  tech: [
+    ["家庭用スマートディスプレイ市場、前年から拡大", 38],
+    ["新しいタブレット向けの省電力モードが公開", 110],
+    ["電子ペーパーの大型ディスプレイ、価格が下がる", 200],
+    ["ブラウザの新機能で、ページの読み込みがより速く", 290],
+  ],
+  dev: [
+    ["Hono + Drizzle で作る型安全な REST API 入門", 60],
+    ["React のサーバーコンポーネントを実務で使う", 150],
+    ["CSS のコンテナクエリで作るレスポンシブなカード", 260],
+    ["テストを速くする、小さな工夫のまとめ", 380],
+  ],
+  cloud: [
+    ["サーバーレス環境から PostgreSQL に接続するときの注意点", 120],
+    ["コンテナのデプロイを自動化する手順", 210],
+    ["小さく始めるクラウドの費用の見直し方", 310],
+    ["マネージド DB のバックアップと復元を試す", 420],
+  ],
+};
+
 export function sampleNews(now: Date): NewsItemsResponse {
-  const ago = (minutes: number) =>
-    new Date(now.getTime() - minutes * 60_000).toISOString();
-  const item = (
-    id: string,
-    feedId: string,
-    title: string,
-    minutes: number,
-    summary = "",
-  ) => ({
-    id,
-    feedId,
-    title,
-    link: `https://example.com/${id}`,
-    publishedAt: ago(minutes),
-    image: null,
-    summary,
-  });
   return {
     feeds: SAMPLE_FEEDS,
-    items: [
-      item(
-        "1",
-        "news",
-        "各地で紅葉が見頃に 週末は行楽日和の予想",
-        12,
-        "全国の観光地で紅葉が色づき、今週末は広い範囲で晴れて気温も平年並みとなる見込みです。",
-      ),
-      item("2", "tech", "家庭用スマートディスプレイ市場、前年から拡大", 38),
-      item("3", "dev", "Hono + Drizzle で作る型安全な REST API 入門", 60),
-      item(
-        "4",
-        "cloud",
-        "サーバーレス環境から PostgreSQL に接続するときの注意点",
-        120,
-      ),
-      item("5", "news", "来週は寒気の影響で各地の気温が下がる見込み", 180),
-    ],
+    items: Object.entries(SAMPLE_HEADLINES).flatMap(([feedId, headlines]) =>
+      headlines.map(([title, minutes], index) => ({
+        id: `${feedId}-${index}`,
+        feedId,
+        title,
+        link: `https://example.com/${feedId}/${index}`,
+        publishedAt: new Date(now.getTime() - minutes * 60_000).toISOString(),
+        image: null,
+        summary: "",
+      })),
+    ),
   };
 }

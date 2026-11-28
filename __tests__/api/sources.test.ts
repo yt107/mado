@@ -362,6 +362,7 @@ describe("ニュースのフィード", () => {
       title: "テストニュース",
       feedUrl: "https://news.example.com/rss",
       sortOrder: 0,
+      visible: true,
       lastFetchedAt: expect.any(String),
       lastError: null,
     });
@@ -401,7 +402,7 @@ describe("ニュースのフィード", () => {
     );
   });
 
-  test("記事を新しい順にまとめ、並べ替え・削除もできる", async () => {
+  test("記事をフィードごとに新しい順で返し、並べ替え・削除もできる", async () => {
     pages.set("https://a.example.com/rss", {
       text: rss(
         "A",
@@ -428,10 +429,10 @@ describe("ニュースのフィード", () => {
     const body = await res.json();
     expect(body.items.map((item: { title: string }) => item.title)).toEqual([
       "A1",
-      "B1",
       "A2",
+      "B1",
     ]);
-    expect(body.items[1]).toMatchObject({
+    expect(body.items[2]).toMatchObject({
       feedId: b.id,
       link: "https://b.example.com/1",
     });
@@ -449,5 +450,132 @@ describe("ニュースのフィード", () => {
 
     expect((await send("DELETE", `/api/news-feeds/${a.id}`)).status).toBe(204);
     expect(await db.select().from(newsFeeds)).toHaveLength(1);
+  });
+
+  test("隠したフィードは読まず、記事も返さない", async () => {
+    pages.set("https://a.example.com/rss", {
+      text: rss("A", [
+        "A1",
+        "https://a.example.com/1",
+        "Thu, 19 Nov 2026 09:00:00 +0900",
+      ]),
+    });
+    pages.set("https://b.example.com/rss", {
+      text: rss("B", [
+        "B1",
+        "https://b.example.com/1",
+        "Thu, 19 Nov 2026 08:00:00 +0900",
+      ]),
+    });
+    await send("POST", path(), { url: "https://a.example.com/rss" });
+    const b = await (
+      await send("POST", path(), { url: "https://b.example.com/rss" })
+    ).json();
+
+    const hidden = await send("PATCH", `/api/news-feeds/${b.id}`, {
+      visible: false,
+    });
+    expect(hidden.status).toBe(200);
+    expect(await hidden.json()).toMatchObject({ id: b.id, visible: false });
+    const widget = await boardWidget("news");
+    expect(
+      widget.newsFeeds.map((f: { visible: boolean }) => f.visible),
+    ).toEqual([true, false]);
+
+    // B のページが読めなくなっても、隠しているので読みに行かない
+    pages.set("https://b.example.com/rss", new Error("読まないはず"));
+    const res = await send("GET", `/api/widgets/${byType.news!.id}/news-items`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.feeds.map((f: { title: string }) => f.title)).toEqual(["A"]);
+    expect(body.items.map((item: { title: string }) => item.title)).toEqual([
+      "A1",
+    ]);
+
+    // 表示に戻せる
+    const shown = await send("PATCH", `/api/news-feeds/${b.id}`, {
+      visible: true,
+    });
+    expect((await shown.json()).visible).toBe(true);
+  });
+
+  test("feeds を渡すと、そのフィードを読む（隠したままでも）", async () => {
+    pages.set("https://a.example.com/rss", {
+      text: rss("A", [
+        "A1",
+        "https://a.example.com/1",
+        "Thu, 19 Nov 2026 09:00:00 +0900",
+      ]),
+    });
+    pages.set("https://b.example.com/rss", {
+      text: rss("B", [
+        "B1",
+        "https://b.example.com/1",
+        "Thu, 19 Nov 2026 10:00:00 +0900",
+      ]),
+    });
+    const a = await (
+      await send("POST", path(), { url: "https://a.example.com/rss" })
+    ).json();
+    const b = await (
+      await send("POST", path(), { url: "https://b.example.com/rss" })
+    ).json();
+    await send("PATCH", `/api/news-feeds/${b.id}`, { visible: false });
+
+    const items = (query: string) =>
+      send("GET", `/api/widgets/${byType.news!.id}/news-items?${query}`);
+    const titles = async (query: string) =>
+      (await (await items(query)).json()).items.map(
+        (item: { title: string }) => item.title,
+      );
+
+    // 画面で表示に戻した直後（保存が終わる前）でも、B を読む
+    expect(await titles(`feeds=${a.id},${b.id}`)).toEqual(["A1", "B1"]);
+    expect(await titles(`feeds=${b.id}`)).toEqual(["B1"]);
+    // ほかのウィジェットのフィードの ID は無視する
+    expect(await titles(`feeds=${a.id},${crypto.randomUUID()}`)).toEqual([
+      "A1",
+    ]);
+    // ID の形が正しくなければ 400
+    expect((await items("feeds=abc")).status).toBe(400);
+    expect((await items("feeds=")).status).toBe(400);
+  });
+
+  test("1つのフィードからは、新しい記事を10件まで返す", async () => {
+    const items = Array.from(
+      { length: 12 },
+      (_, i) =>
+        [
+          `記事${i + 1}`,
+          `https://many.example.com/${i + 1}`,
+          // 記事1がいちばん古く、記事12がいちばん新しい
+          `Thu, 19 Nov 2026 ${String(i + 1).padStart(2, "0")}:00:00 +0900`,
+        ] as [string, string, string],
+    );
+    pages.set("https://many.example.com/rss", { text: rss("多い", ...items) });
+    await send("POST", path(), { url: "https://many.example.com/rss" });
+
+    const body = await (
+      await send("GET", `/api/widgets/${byType.news!.id}/news-items`)
+    ).json();
+    expect(body.items).toHaveLength(10);
+    expect(body.items[0].title).toBe("記事12");
+    expect(body.items[9].title).toBe("記事3");
+  });
+
+  test("フィードの変更で、変える値がなければ 400", async () => {
+    pages.set("https://a.example.com/rss", {
+      text: rss("A", [
+        "A1",
+        "https://a.example.com/1",
+        "Thu, 19 Nov 2026 09:00:00 +0900",
+      ]),
+    });
+    const a = await (
+      await send("POST", path(), { url: "https://a.example.com/rss" })
+    ).json();
+    expect((await send("PATCH", `/api/news-feeds/${a.id}`, {})).status).toBe(
+      400,
+    );
   });
 });

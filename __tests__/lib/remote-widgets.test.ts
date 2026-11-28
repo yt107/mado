@@ -11,9 +11,10 @@ import {
   type CalendarEvent,
 } from "@/lib/widgets/calendar";
 import {
-  dedupeItems,
   itemsOfFeeds,
+  newsColumns,
   newsCount,
+  updateNewsFeedSchema,
   type NewsItem,
 } from "@/lib/widgets/news";
 import { normalizeSettings } from "@/lib/widgets/settings";
@@ -279,14 +280,42 @@ describe("ニュース", () => {
     summary: "",
   });
 
-  test("同じリンクや同じ見出しの記事は、1つにまとめる", () => {
-    const items = [
-      item("1", "見出し A", "https://example.com/a?utm_source=x"),
-      item("2", "見出しA", "https://other.example.com/a"),
-      item("3", "見出し B", "https://example.com/a"),
-      item("4", "見出し C", "https://example.com/c"),
-    ];
-    expect(dedupeItems(items).map((i) => i.id)).toEqual(["1", "4"]);
+  test("設定の初期値", () => {
+    expect(normalizeSettings("news", {})).toEqual({
+      count: "auto",
+      showImages: true,
+      autoRotate: true,
+      refreshMinutes: 15,
+    });
+    // なくした設定（同じ記事をまとめる）が残っていても、読み捨てる
+    expect(normalizeSettings("news", { dedupe: false })).not.toHaveProperty(
+      "dedupe",
+    );
+  });
+
+  test("列に並べるのは、表示するフィードを並び順に、横のマスの数まで", () => {
+    const feed = (id: string, sortOrder: number, visible = true) => ({
+      id,
+      sortOrder,
+      visible,
+    });
+    const feeds = [feed("c", 2), feed("a", 0), feed("hidden", 1, false)];
+    const ids = (width: number) => newsColumns(feeds, width).map((f) => f.id);
+    expect(ids(1)).toEqual(["a"]);
+    expect(ids(2)).toEqual(["a", "c"]);
+    // フィードが横のマスより少なければ、その数だけ（列が広がる）
+    expect(ids(4)).toEqual(["a", "c"]);
+    expect(newsColumns([feed("hidden", 0, false)], 3)).toEqual([]);
+  });
+
+  test("フィードの変更は、名前・並び順・表示するかのどれかが要る", () => {
+    expect(updateNewsFeedSchema.safeParse({ visible: false }).success).toBe(
+      true,
+    );
+    expect(updateNewsFeedSchema.safeParse({ visible: "no" }).success).toBe(
+      false,
+    );
+    expect(updateNewsFeedSchema.safeParse({}).success).toBe(false);
   });
 
   test("消したフィードの記事は出さない", () => {
